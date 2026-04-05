@@ -63,7 +63,7 @@ function Register() {
               setForm({ ...form, role: e.target.value })
             }
           >
-            <option value="NGO">STK</option>
+            <option value="NGO">NGO</option>
             <option value="MARKET">Market</option>
           </select>
         </div>
