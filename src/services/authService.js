@@ -1,8 +1,4 @@
-import axios from "axios";
-
-const API = axios.create({
-  baseURL: "https://contemptibly-septemviral-apollo.ngrok-free.dev/api",
-});
+import API from "./api";
 
 const TOKEN_KEY = "replate_auth_token";
 const USER_KEY = "replate_auth_user";
@@ -49,6 +45,11 @@ const extractMessage = (error, fallback) => error?.response?.data?.message || er
 export const loginUser = async (data) => {
   try {
     const res = await API.post("/auth/login", data);
+
+    if (res.data.user) {
+      localStorage.setItem("user", JSON.stringify(res.data.user));
+    }
+
     return res.data;
   } catch (error) {
     throw new Error(extractMessage(error, "Login failed"));

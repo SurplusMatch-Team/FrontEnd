@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { clearAuthStorage, getStoredAuth, setAuthToken } from "../api/authService";
+import { clearAuthStorage, getStoredAuth, setAuthToken } from "../services/authService";
 import { AuthContext } from "./auth-context";
 
 export function AuthProvider({ children }) {
