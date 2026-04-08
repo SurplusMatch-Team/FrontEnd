@@ -1,12 +1,8 @@
-import API from "../services/api";
+import API from "./api";
 
 export const loginUser = async (data) => {
   try {
     const res = await API.post("/auth/login", data);
-
-    if (res.data.token) {
-      localStorage.setItem("token", res.data.token);
-    }
 
     if (res.data.user) {
       localStorage.setItem("user", JSON.stringify(res.data.user));
