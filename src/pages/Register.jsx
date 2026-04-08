@@ -25,7 +25,7 @@ function Register() {
       setSuccess("Registration successful. Redirecting to sign in...");
       setTimeout(() => navigate("/login"), 700);
     } catch (err) {
-      setError(err.message || "Server error.");
+      setError(err?.message || err?.response?.data?.message || "Server error.");
     } finally {
       setLoading(false);
     }
