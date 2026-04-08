@@ -21,64 +21,76 @@ function Register() {
     try {
       const res = await registerUser(form);
       console.log("Register response:", res);
-      setSuccess("Kayıt başarılı");
+      setSuccess("Registration successful.");
     } catch (err) {
-      setError(err.response?.data?.message || "Sunucu hatası");
+      setError(err.response?.data?.message || "Server error.");
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="w-full max-w-md bg-white shadow-lg rounded-2xl p-8">
-      <h2 className="text-2xl font-bold text-center mb-2">Kayıt Ol</h2>
-      <p className="text-center text-gray-500 mb-6">
-        Yeni hesap oluşturun
-      </p>
+    <div className="w-full max-w-xl rounded-3xl border border-slate-200 bg-white p-7 md:p-9 shadow-xl">
+      <div className="mb-6">
+        <p className="text-xs uppercase tracking-[0.2em] text-cyan-700 font-semibold">
+          Join the Network
+        </p>
+        <h2 className="text-3xl font-bold text-slate-800 mt-2 flex items-center gap-2">
+          <span className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-cyan-100 text-cyan-700">
+            <svg viewBox="0 0 24 24" className="h-4 w-4 fill-none stroke-current stroke-[1.8]">
+              <path d="M12 5v14M5 12h14" />
+            </svg>
+          </span>
+          Create Account
+        </h2>
+        <p className="text-slate-600 mt-2">
+          Register your organization and start sharing surplus with the right partners.
+        </p>
+      </div>
 
       {error && (
-        <div className="mb-4 rounded-lg bg-red-100 text-red-700 px-4 py-2 text-sm">
+        <div className="mb-4 rounded-xl border border-red-200 bg-red-50 text-red-700 px-4 py-3 text-sm">
           {error}
         </div>
       )}
 
       {success && (
-        <div className="mb-4 rounded-lg bg-green-100 text-green-700 px-4 py-2 text-sm">
+        <div className="mb-4 rounded-xl border border-emerald-200 bg-emerald-50 text-emerald-700 px-4 py-3 text-sm">
           {success}
         </div>
       )}
 
       <form onSubmit={handleRegister} className="space-y-4">
         <div>
-          <label className="block text-sm font-medium mb-1">Email</label>
+          <label className="block text-sm font-medium mb-1 text-slate-700">Email</label>
           <input
             type="email"
-            placeholder="ornek@mail.com"
+            placeholder="example@mail.com"
             value={form.email}
             onChange={(e) => setForm({ ...form, email: e.target.value })}
-            className="w-full border border-gray-300 rounded-lg px-4 py-2 outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-full rounded-xl border border-slate-300 bg-slate-50 px-4 py-3 text-slate-800 placeholder:text-slate-400 outline-none transition focus:border-emerald-400 focus:ring-2 focus:ring-emerald-200"
           />
         </div>
 
         <div>
-          <label className="block text-sm font-medium mb-1">Şifre</label>
+          <label className="block text-sm font-medium mb-1 text-slate-700">Password</label>
           <input
             type="password"
-            placeholder="Şifrenizi girin"
+            placeholder="Create a password"
             value={form.password}
             onChange={(e) => setForm({ ...form, password: e.target.value })}
-            className="w-full border border-gray-300 rounded-lg px-4 py-2 outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-full rounded-xl border border-slate-300 bg-slate-50 px-4 py-3 text-slate-800 placeholder:text-slate-400 outline-none transition focus:border-emerald-400 focus:ring-2 focus:ring-emerald-200"
           />
         </div>
 
         <div>
-          <label className="block text-sm font-medium mb-1">Rol</label>
+          <label className="block text-sm font-medium mb-1 text-slate-700">Organization Type</label>
           <select
             value={form.role}
             onChange={(e) => setForm({ ...form, role: e.target.value })}
-            className="w-full border border-gray-300 rounded-lg px-4 py-2 outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-full rounded-xl border border-slate-300 bg-slate-50 px-4 py-3 text-slate-800 outline-none transition focus:border-emerald-400 focus:ring-2 focus:ring-emerald-200"
           >
-            <option value="NGO">Sivil Toplum Kuruluşu</option>
+            <option value="NGO">NGO</option>
             <option value="MARKET">Market</option>
           </select>
         </div>
@@ -86,9 +98,9 @@ function Register() {
         <button
           type="submit"
           disabled={loading}
-          className="w-full bg-blue-600 text-white py-2 rounded-lg font-semibold hover:bg-blue-700 transition disabled:bg-blue-300"
+          className="w-full rounded-xl bg-cyan-600 py-3 font-semibold text-white shadow-md transition hover:bg-cyan-500 disabled:cursor-not-allowed disabled:opacity-60"
         >
-          {loading ? "Kayıt oluşturuluyor..." : "Kayıt Ol"}
+          {loading ? "Creating account..." : "Create Account"}
         </button>
       </form>
     </div>
