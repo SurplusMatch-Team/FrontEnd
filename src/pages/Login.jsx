@@ -1,7 +1,11 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { loginUser } from "../services/authService";
+import { useAuth } from "../hooks/useAuth";
 
 function Login() {
+  const navigate = useNavigate();
+  const { login } = useAuth();
   const [form, setForm] = useState({
     email: "",
     password: "",
@@ -19,10 +23,18 @@ function Login() {
 
     try {
       const res = await loginUser(form);
-      console.log("Login response:", res);
-      setSuccess("Login successful.");
+      const token = res?.token || res?.accessToken;
+      const user = res?.user || { email: form.email, role: res?.role || "NGO" };
+
+      if (!token) {
+        throw new Error("Token not found in login response.");
+      }
+
+      login({ token, user });
+      setSuccess("Login successful. Redirecting to dashboard...");
+      navigate("/dashboard", { replace: true });
     } catch (err) {
-      setError(err.response?.data?.message || "Server error.");
+      setError(err.message || "Server error.");
     } finally {
       setLoading(false);
     }
