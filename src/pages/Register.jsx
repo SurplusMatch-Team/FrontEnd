@@ -1,7 +1,9 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { registerUser } from "../api/authService";
 
 function Register() {
+  const navigate = useNavigate();
   const [form, setForm] = useState({
     email: "",
     password: "",
@@ -19,11 +21,11 @@ function Register() {
     setSuccess("");
 
     try {
-      const res = await registerUser(form);
-      console.log("Register response:", res);
-      setSuccess("Registration successful.");
+      await registerUser(form);
+      setSuccess("Registration successful. Redirecting to sign in...");
+      setTimeout(() => navigate("/login"), 700);
     } catch (err) {
-      setError(err.response?.data?.message || "Server error.");
+      setError(err.message || "Server error.");
     } finally {
       setLoading(false);
     }
