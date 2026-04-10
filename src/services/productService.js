@@ -1,11 +1,14 @@
 import API from "./api";
 
+const extractMessage = (error, fallback) =>
+  error?.response?.data?.message || error?.message || fallback;
+
 export const getProducts = async () => {
   try {
     const res = await API.get("/products");
     return res.data;
   } catch (error) {
-    throw error.response?.data || { message: "Failed to fetch products" };
+    throw new Error(extractMessage(error, "Failed to fetch products"));
   }
 };
 
@@ -14,6 +17,6 @@ export const createProduct = async (productData) => {
     const res = await API.post("/products", productData);
     return res.data;
   } catch (error) {
-    throw error.response?.data || { message: "Failed to create product" };
+    throw new Error(extractMessage(error, "Failed to create product"));
   }
 };

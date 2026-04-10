@@ -3,6 +3,8 @@ import App from "./App";
 import ProtectedRoute from "./components/common/ProtectedRoute";
 import Dashboard from "./pages/Dashboard";
 import AuthPage from "./pages/AuthPage";
+import AddProduct from "./pages/AddProduct";
+import ProductList from "./pages/ProductList";
 
 const router = createBrowserRouter([
   {
@@ -19,6 +21,14 @@ const router = createBrowserRouter([
             <Dashboard />
           </ProtectedRoute>
         ),
+      },
+      {
+        path: "/add-product",
+        element: <AddProduct />,
+      },
+      {
+        path: "/products",
+        element: <ProductList />,
       },
     ],
   },

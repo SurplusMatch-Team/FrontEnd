@@ -1,25 +1,24 @@
 import { useMemo, useState } from "react";
-import { clearAuthStorage, getStoredAuth, setAuthToken } from "../services/authService";
+import { clearAuthStorage, getStoredAuth, setStoredUser } from "../services/authService";
 import { AuthContext } from "./auth-context";
 
 export function AuthProvider({ children }) {
   const [auth, setAuth] = useState(() => getStoredAuth());
 
-  const login = ({ token, user }) => {
-    setAuthToken(token, user);
-    setAuth({ token, user });
+  const login = ({ user }) => {
+    setStoredUser(user);
+    setAuth({ user });
   };
 
   const logout = () => {
     clearAuthStorage();
-    setAuth({ token: null, user: null });
+    setAuth({ user: null });
   };
 
   const value = useMemo(
     () => ({
-      token: auth?.token || null,
       user: auth?.user || null,
-      isAuthenticated: Boolean(auth?.token),
+      isAuthenticated: Boolean(auth?.user),
       login,
       logout,
     }),
@@ -28,4 +27,3 @@ export function AuthProvider({ children }) {
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
-

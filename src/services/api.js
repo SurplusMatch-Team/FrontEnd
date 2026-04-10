@@ -1,7 +1,7 @@
 import axios from "axios";
 
 const API = axios.create({
-  baseURL: "https://contemptibly-septemviral-apollo.ngrok-free.dev/api",
+  baseURL: "http://localhost:8085/api",
   headers: {
     "Content-Type": "application/json",
   },
