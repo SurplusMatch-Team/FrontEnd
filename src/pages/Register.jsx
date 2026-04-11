@@ -5,10 +5,11 @@ import { registerUser } from "../services/authService";
 function Register() {
   const navigate = useNavigate();
   const [form, setForm] = useState({
-    email: "",
-    password: "",
-    role: "NGO",
-  });
+  "email": "",
+  "password": "",
+  "organizationName": "",
+  "role": "MARKET"
+});
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -23,9 +24,12 @@ function Register() {
     try {
       await registerUser(form);
       setSuccess("Registration successful. Redirecting to sign in...");
-      setTimeout(() => navigate("/login"), 700);
+
+      setTimeout(() => {
+        navigate("/login", { replace: true });
+      }, 700);
     } catch (err) {
-      setError(err?.message || err?.response?.data?.message || "Server error.");
+      setError(err?.message || "Server error.");
     } finally {
       setLoading(false);
     }
@@ -81,6 +85,21 @@ function Register() {
             placeholder="Create a password"
             value={form.password}
             onChange={(e) => setForm({ ...form, password: e.target.value })}
+            className="w-full rounded-xl border border-slate-300 bg-slate-50 px-4 py-3 text-slate-800 placeholder:text-slate-400 outline-none transition focus:border-emerald-400 focus:ring-2 focus:ring-emerald-200"
+          />
+        </div>
+
+          <div>
+          <label className="block text-sm font-medium mb-1 text-slate-700">
+            Organization Name
+          </label>
+          <input
+            type="text"
+            placeholder="Enter organization name"
+            value={form.organizationName}
+            onChange={(e) =>
+              setForm({ ...form, organizationName: e.target.value })
+            }
             className="w-full rounded-xl border border-slate-300 bg-slate-50 px-4 py-3 text-slate-800 placeholder:text-slate-400 outline-none transition focus:border-emerald-400 focus:ring-2 focus:ring-emerald-200"
           />
         </div>
