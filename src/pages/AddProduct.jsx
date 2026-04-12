@@ -14,33 +14,39 @@ function AddProduct() {
   const [success, setSuccess] = useState("");
 
   const handleSubmit = async (e) => {
-    e.preventDefault();
-    setLoading(true);
-    setError("");
-    setSuccess("");
+  e.preventDefault();
+  setError("");
+  setSuccess("");
 
-    try {
-      await createProduct({
-        name: form.name,
-        quantity: Number(form.quantity),
-        expiryDate: form.expiryDate,
-        categoryId: Number(form.categoryId),
-        ownerId: 1, // hardcoded for now
-      });
+  if (!form.name || !form.quantity || !form.expiryDate || !form.categoryId) {
+    setError("Please fill in all fields.");
+    return;
+  }
 
-      setSuccess("Product added successfully.");
-      setForm({
-        name: "",
-        quantity: "",
-        expiryDate: "",
-        categoryId: "",
-      });
-    } catch (err) {
-      setError(err.message || "Server error.");
-    } finally {
-      setLoading(false);
-    }
-  };
+  setLoading(true);
+
+  try {
+    await createProduct({
+      name: form.name,
+      quantity: Number(form.quantity),
+      expiryDate: form.expiryDate,
+      categoryId: Number(form.categoryId),
+      ownerId: 1,
+    });
+
+    setSuccess("Product added successfully.");
+    setForm({
+      name: "",
+      quantity: "",
+      expiryDate: "",
+      categoryId: "",
+    });
+  } catch (err) {
+    setError(err.message || "Server error.");
+  } finally {
+    setLoading(false);
+  }
+};
 
   return (
     <div className="w-full max-w-2xl rounded-3xl border border-slate-200 bg-white p-6 shadow-xl">
