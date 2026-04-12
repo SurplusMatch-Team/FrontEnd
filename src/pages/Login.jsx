@@ -6,7 +6,6 @@ import { useAuth } from "../hooks/useAuth";
 function Login() {
   const navigate = useNavigate();
   const { login } = useAuth();
-
   const [form, setForm] = useState({
     email: "",
     password: "",
@@ -24,20 +23,19 @@ function Login() {
 
     try {
       const res = await loginUser(form);
+      const token = res?.token || res?.accessToken;
       const user = res?.user || { email: form.email, role: res?.role || "NGO" };
 
-      if (!user) {
+      if (!user?.email && !token) {
         throw new Error("User not found in login response.");
       }
 
-      login({ user });
-      setSuccess("Login successful. Redirecting...");
-
-      setTimeout(() => {
-        navigate("/dashboard", { replace: true });
-      }, 500);
+      login({ token: token || undefined, user });
+      setSuccess("Login successful. Redirecting to dashboard...");
+      navigate("/dashboard", { replace: true });
     } catch (err) {
-      setError(err.message || "Server error.");
+      const msg = err?.message || err?.response?.data?.message || "Server error.";
+      setError(msg);
     } finally {
       setLoading(false);
     }
