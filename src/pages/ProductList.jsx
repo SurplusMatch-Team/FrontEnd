@@ -26,20 +26,22 @@ function ProductList() {
   }, []);
 
   const handleClaim = async (productId) => {
-    try {
-      setClaimSuccess("");
-      setClaimError("");
+  try {
+    setClaimSuccess("");
+    setClaimError("");
 
-      await createClaim({
-        productId,
-        claimantId: 2, // hardcoded for now
-      });
+    const user = JSON.parse(localStorage.getItem("replate_auth_user"));
 
-      setClaimSuccess("Claim created successfully.");
-    } catch (err) {
-      setClaimError(err.message || "Failed to create claim.");
-    }
-  };
+    await createClaim({
+      productId,
+      claimantId: user.id,
+    });
+
+    setClaimSuccess("Claim created successfully.");
+  } catch (err) {
+    setClaimError(err.message || "Failed to create claim.");
+  }
+};
 
   return (
     <div className="w-full max-w-4xl rounded-3xl border border-slate-200 bg-white p-6 shadow-xl">

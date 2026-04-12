@@ -6,7 +6,7 @@ const extractMessage = (error, fallback) =>
 export const getProducts = async () => {
   try {
     const res = await API.get("/products");
-    return res.data;
+    return res.data.data || res.data; 
   } catch (error) {
     throw new Error(extractMessage(error, "Failed to fetch products"));
   }
@@ -15,7 +15,7 @@ export const getProducts = async () => {
 export const createProduct = async (productData) => {
   try {
     const res = await API.post("/products", productData);
-    return res.data;
+    return res.data.data || res.data; 
   } catch (error) {
     throw new Error(extractMessage(error, "Failed to create product"));
   }

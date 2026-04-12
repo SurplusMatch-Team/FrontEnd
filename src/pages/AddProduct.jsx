@@ -24,6 +24,7 @@ function AddProduct() {
   }
 
   setLoading(true);
+  const user = JSON.parse(localStorage.getItem("replate_auth_user"));
 
   try {
     await createProduct({
@@ -31,7 +32,7 @@ function AddProduct() {
       quantity: Number(form.quantity),
       expiryDate: form.expiryDate,
       categoryId: Number(form.categoryId),
-      ownerId: 1,
+      ownerId: user.id,
     });
 
     setSuccess("Product added successfully.");
