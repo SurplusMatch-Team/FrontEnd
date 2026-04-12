@@ -6,13 +6,14 @@ function ProductList() {
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [claimMessage, setClaimMessage] = useState("");
+  const [claimSuccess, setClaimSuccess] = useState("");
+  const [claimError, setClaimError] = useState("");
 
   const fetchProducts = async () => {
     try {
       setError("");
       const data = await getProducts();
-      setProducts(data);
+      setProducts(Array.isArray(data) ? data : []);
     } catch (err) {
       setError(err.message || "Failed to fetch products.");
     } finally {
@@ -26,14 +27,17 @@ function ProductList() {
 
   const handleClaim = async (productId) => {
     try {
-      setClaimMessage("");
+      setClaimSuccess("");
+      setClaimError("");
+
       await createClaim({
         productId,
         claimantId: 2, // hardcoded for now
       });
-      setClaimMessage("Claim created successfully.");
+
+      setClaimSuccess("Claim created successfully.");
     } catch (err) {
-      setClaimMessage(err.message || "Failed to create claim.");
+      setClaimError(err.message || "Failed to create claim.");
     }
   };
 
@@ -47,19 +51,25 @@ function ProductList() {
         </div>
       )}
 
-      {claimMessage && (
+      {claimError && (
+        <div className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          {claimError}
+        </div>
+      )}
+
+      {claimSuccess && (
         <div className="mb-4 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
-          {claimMessage}
+          {claimSuccess}
         </div>
       )}
 
       {loading ? (
         <p className="text-slate-600">Loading products...</p>
-        ) : error ? (
+      ) : error ? (
         <p className="text-slate-600">Products could not be loaded.</p>
-        ) : products.length === 0 ? (
+      ) : products.length === 0 ? (
         <p className="text-slate-600">No products found.</p>
-        ) : (
+      ) : (
         <div className="space-y-4">
           {products.map((product) => (
             <div

@@ -1,16 +1,30 @@
 import { useState } from "react";
+import { createClaim } from "../../services/claimService";
 
 const OFFERS = [
-  { id: "o1", org: "GreenLeaf Market", title: "Mixed bakery trays", qty: "18 kg", expires: "Today", distance: "2.4 km" },
-  { id: "o2", org: "Northside Wholesale", title: "Dairy assortment", qty: "12 crates", expires: "Tomorrow", distance: "5.1 km" },
-  { id: "o3", org: "Campus Co-op", title: "Fruit boxes", qty: "9 boxes", expires: "1 day", distance: "0.8 km" },
-  { id: "o4", org: "FreshMart", title: "Prepared salads", qty: "30 units", expires: "2 days", distance: "3.2 km" },
+  { id: 1, org: "GreenLeaf Market", title: "Mixed bakery trays", qty: "18 kg", expires: "Today", distance: "2.4 km" },
+  { id: 2, org: "Northside Wholesale", title: "Dairy assortment", qty: "12 crates", expires: "Tomorrow", distance: "5.1 km" },
+  { id: 3, org: "Campus Co-op", title: "Fruit boxes", qty: "9 boxes", expires: "1 day", distance: "0.8 km" },
+  { id: 4, org: "FreshMart", title: "Prepared salads", qty: "30 units", expires: "2 days", distance: "3.2 km" },
 ];
 
 const filters = ["All", "Expiring soon", "Near me"];
 
 function NgoBrowseOffers() {
   const [activeFilter, setActiveFilter] = useState("All");
+
+  const handleClaim = async (offer) => {
+  try {
+    await createClaim({
+      productId: offer.id,
+      claimantId: 2,
+    });
+
+    alert(`A claim request has been submitted for ${offer.title}`);
+  } catch (err) {
+    alert(err.message || "Claim failed.");
+  }
+};
 
   return (
     <div className="space-y-6">
@@ -59,6 +73,7 @@ function NgoBrowseOffers() {
             <div className="flex shrink-0 flex-wrap gap-2 md:flex-col">
               <button
                 type="button"
+                onClick={() => handleClaim(offer)}
                 className="rounded-xl bg-emerald-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-500"
               >
                 Request claim
