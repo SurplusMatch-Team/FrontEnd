@@ -11,3 +11,39 @@ export const createClaim = async (claimData) => {
     throw new Error(extractMessage(error, "Failed to create claim"));
   }
 };
+
+export const getClaimsByClaimant = async (claimantId) => {
+  try {
+    const res = await API.get(`/claims/claimant/${claimantId}`);
+    return res.data;
+  } catch (error) {
+    throw new Error(extractMessage(error, "Failed to fetch your claims"));
+  }
+};
+
+export const getClaimsByProduct = async (productId) => {
+  try {
+    const res = await API.get(`/claims/product/${productId}`);
+    return res.data;
+  } catch (error) {
+    throw new Error(extractMessage(error, "Failed to fetch product claims"));
+  }
+};
+
+export const approveClaim = async (claimId) => {
+  try {
+    const res = await API.patch(`/claims/${claimId}/approve`);
+    return res.data;
+  } catch (error) {
+    throw new Error(extractMessage(error, "Failed to approve claim"));
+  }
+};
+
+export const rejectClaim = async (claimId) => {
+  try {
+    const res = await API.patch(`/claims/${claimId}/reject`);
+    return res.data;
+  } catch (error) {
+    throw new Error(extractMessage(error, "Failed to reject claim"));
+  }
+};
