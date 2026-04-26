@@ -8,7 +8,6 @@ function Login() {
   const navigate = useNavigate();
   const { login } = useAuth();
   const { t } = useI18n();
-
   const [form, setForm] = useState({
     email: "",
     password: "",
@@ -26,13 +25,14 @@ function Login() {
 
     try {
       const res = await loginUser(form);
+      const token = res?.token || res?.accessToken;
       const user = res?.user || { email: form.email, role: res?.role || "NGO" };
 
-      if (!user) {
+      if (!user?.email && !token) {
         throw new Error(t("login.errUser"));
       }
 
-      login({ user });
+      login({ token: token || undefined, user });
       setSuccess(t("login.success"));
 
       setTimeout(() => {
@@ -40,7 +40,8 @@ function Login() {
         navigate(dest, { replace: true });
       }, 500);
     } catch (err) {
-      setError(err.message || t("login.errServer"));
+      const msg = err?.message || err?.response?.data?.message || t("login.errServer");
+      setError(msg);
     } finally {
       setLoading(false);
     }

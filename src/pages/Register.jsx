@@ -31,7 +31,7 @@ function Register() {
         navigate("/login", { replace: true });
       }, 700);
     } catch (err) {
-      setError(err?.message || t("register.errServer"));
+      setError(err?.message || err?.response?.data?.message || t("register.errServer"));
     } finally {
       setLoading(false);
     }
