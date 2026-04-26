@@ -1,34 +1,43 @@
-import { Navigate, createBrowserRouter } from "react-router-dom";
+import { createBrowserRouter } from "react-router-dom";
 import App from "./App";
 import ProtectedRoute from "./components/common/ProtectedRoute";
-import Dashboard from "./pages/Dashboard";
 import AuthPage from "./pages/AuthPage";
-import AddProduct from "./pages/AddProduct";
-import ProductList from "./pages/ProductList";
+import LandingPage from "./pages/LandingPage";
+import DashboardRedirect from "./pages/DashboardRedirect";
+import MarketDashboard from "./pages/MarketDashboard";
+import NgoDashboard from "./pages/NgoDashboard";
 
 const router = createBrowserRouter([
   {
     path: "/",
     element: <App />,
     children: [
-      { index: true, element: <Navigate to="/login" replace /> },
+      { index: true, element: <LandingPage /> },
       { path: "/login", element: <AuthPage mode="login" /> },
       { path: "/register", element: <AuthPage mode="register" /> },
       {
         path: "/dashboard",
         element: (
           <ProtectedRoute>
-            <Dashboard />
+            <DashboardRedirect />
           </ProtectedRoute>
         ),
       },
       {
-        path: "/add-product",
-        element: <AddProduct />,
+        path: "/dashboard/market",
+        element: (
+          <ProtectedRoute>
+            <MarketDashboard />
+          </ProtectedRoute>
+        ),
       },
       {
-        path: "/products",
-        element: <ProductList />,
+        path: "/dashboard/ngo",
+        element: (
+          <ProtectedRoute>
+            <NgoDashboard />
+          </ProtectedRoute>
+        ),
       },
     ],
   },
