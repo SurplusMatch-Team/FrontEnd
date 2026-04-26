@@ -38,6 +38,9 @@ function ProductList() {
     });
 
     setClaimSuccess("Claim created successfully.");
+
+    setProducts(prevProducts => prevProducts.filter(p => p.id !== productId));
+    
   } catch (err) {
     setClaimError(err.message || "Failed to create claim.");
   }
