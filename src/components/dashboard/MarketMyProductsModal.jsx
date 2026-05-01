@@ -68,10 +68,19 @@ function MarketMyProductsModal({
   const saveEdit = (productId) => {
     if (!editForm) return;
     const qty = Number(editForm.quantity);
+
     if (!editForm.name.trim() || !editForm.expiryDate || Number.isNaN(qty) || qty <= 0) {
       setToast({ type: "err", text: t("market.editErrValidation") });
       return;
     }
+
+    const selectedDate = new Date(editForm.expiryDate);
+    const now = new Date();
+    if (selectedDate <= now) {
+      setToast({ type: "err", text: "Hata: Ürün tarihi geçmiş bir zamana güncellenemez!" });
+      return;
+    }
+
     const catLabel = t(`categories.${editForm.categorySlug}`);
     const categoryName = catLabel === `categories.${editForm.categorySlug}` ? t("market.categoryGeneral") : catLabel;
     onUpdate(productId, {

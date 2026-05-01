@@ -5,9 +5,11 @@ const extractMessage = (error, fallback) =>
 
 export const createClaim = async (claimData) => {
   try {
+    console.log("Gönderilen Talep Verisi:", claimData); // Buraya bak!
     const res = await API.post("/claims", claimData);
     return res.data;
   } catch (error) {
+    console.error("Backend Hata Detayı:", error.response?.data); // Gerçek hata burada yazar
     throw new Error(extractMessage(error, "Failed to create claim"));
   }
 };

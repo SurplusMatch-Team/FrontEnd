@@ -1,204 +1,147 @@
-/* eslint-disable react-refresh/only-export-components -- provider + hook share one module */
-import { createContext, useContext, useEffect, useMemo, useReducer, useState } from "react";
+/* eslint-disable react-refresh/only-export-components */
+import { createContext, useContext, useEffect, useMemo, useReducer, useState, useCallback } from "react";
+import { getAvailableProducts, getProductsByOwner, createProduct, deleteProduct as apiDeleteProduct } from "../services/productService";
+import { createClaim, getClaimsByProduct, approveClaim, rejectClaim, getClaimsByClaimant } from "../services/claimService";
+import { useAuth } from "../hooks/useAuth"; 
 
 const SurplusContext = createContext(null);
 
-const now = Date.now();
-const SEED_PRODUCTS = [
-  {
-    id: "p-seed-1",
-    name: "Morning bread assortment",
-    categorySlug: "bakery",
-    categoryName: "Bakery",
-    quantity: 24,
-    quantityUnit: "kg",
-    expiryDate: new Date(now + 86400000).toISOString(),
-    marketName: "Sunrise Market Co-op",
-    status: "AVAILABLE",
-    ownerKey: "market-demo@replate.local",
-    createdAt: new Date(now - 3 * 86400000).toISOString(),
-  },
-  {
-    id: "p-seed-2",
-    name: "Mixed seasonal fruit crates",
-    categorySlug: "fruits",
-    categoryName: "Fruits",
-    quantity: 12,
-    quantityUnit: "crates",
-    expiryDate: new Date(now + 2 * 86400000).toISOString(),
-    marketName: "Sunrise Market Co-op",
-    status: "AVAILABLE",
-    ownerKey: "market-demo@replate.local",
-    createdAt: new Date(now - 86400000).toISOString(),
-  },
-  {
-    id: "p-seed-3",
-    name: "Unsold deli salads (chilled)",
-    categorySlug: "prepared",
-    categoryName: "Prepared meals",
-    quantity: 30,
-    quantityUnit: "portions",
-    expiryDate: new Date(now + 86400000).toISOString(),
-    marketName: "Harbor Fresh Foods",
-    status: "AVAILABLE",
-    ownerKey: "harbor@replate.local",
-    createdAt: new Date(now - 3600000).toISOString(),
-  },
-];
-
-const SEED_CLAIMS = [
-  {
-    id: "c-seed-1",
-    productId: "p-seed-1",
-    productName: "Morning bread assortment",
-    marketName: "Sunrise Market Co-op",
-    ngoName: "Community Plate NGO",
-    claimantKey: "ngo-demo@replate.local",
-    requestedQuantity: 8,
-    status: "PENDING",
-    createdAt: new Date(now - 7200000).toISOString(),
-  },
-];
-
-function applyPendingFromClaims(products, claims) {
-  const pendingByProduct = new Set(
-    claims.filter((c) => c.status === "PENDING").map((c) => c.productId),
-  );
-  return products.map((p) =>
-    pendingByProduct.has(p.id) && p.status === "AVAILABLE" ? { ...p, status: "CLAIM_PENDING" } : p,
-  );
-}
+const CATEGORY_MAP = {
+  "bakery": 1, "fruits": 2, "vegetables": 3, "dairy": 4,
+  "dry_goods": 5, "prepared": 6, "frozen": 7, "beverages": 8
+};
 
 function reducer(state, action) {
   switch (action.type) {
-    case "HYDRATE":
+    case "SET_DATA": 
       return { ...state, products: action.products, claims: action.claims };
-    case "ADD_PRODUCT":
-      return { ...state, products: [...state.products, action.product] };
-    case "UPDATE_PRODUCT": {
-      const { productId, patch } = action;
-      return {
-        ...state,
-        products: state.products.map((p) => (p.id === productId ? { ...p, ...patch } : p)),
-      };
-    }
-    case "DELETE_PRODUCT": {
-      const { productId } = action;
-      return {
-        products: state.products.filter((p) => p.id !== productId),
-        claims: state.claims.filter((c) => c.productId !== productId),
-      };
-    }
-    case "ADD_CLAIM": {
-      const { claim, productId } = action;
-      return {
-        ...state,
-        claims: [...state.claims, claim],
-        products: state.products.map((p) =>
-          p.id === productId && p.status === "AVAILABLE" ? { ...p, status: "CLAIM_PENDING" } : p,
-        ),
-      };
-    }
-    case "RESOLVE_CLAIM": {
-      const { claimId, resolution } = action;
-      const claim = state.claims.find((c) => c.id === claimId);
-      if (!claim) return state;
-      return {
-        claims: state.claims.map((c) => (c.id === claimId ? { ...c, status: resolution } : c)),
-        products: state.products.map((p) => {
-          if (p.id !== claim.productId) return p;
-          if (resolution === "REJECTED") return { ...p, status: "AVAILABLE" };
-          if (resolution === "APPROVED") return { ...p, status: "ALLOCATED" };
-          return p;
-        }),
-      };
-    }
-    case "UPDATE_CLAIM": {
-      const { claimId, claimantKey, requestedQuantity } = action;
-      const claim = state.claims.find(
-        (c) => c.id === claimId && c.claimantKey === claimantKey && c.status === "PENDING",
-      );
-      if (!claim) return state;
-      return {
-        ...state,
-        claims: state.claims.map((c) =>
-          c.id === claimId ? { ...c, requestedQuantity: Number(requestedQuantity) } : c,
-        ),
-      };
-    }
-    case "WITHDRAW_CLAIM": {
-      const { claimId, claimantKey } = action;
-      const claim = state.claims.find(
-        (c) => c.id === claimId && c.claimantKey === claimantKey && c.status === "PENDING",
-      );
-      if (!claim) return state;
-      const { productId } = claim;
-      const newClaims = state.claims.filter((c) => c.id !== claimId);
-      const stillPending = newClaims.some((c) => c.productId === productId && c.status === "PENDING");
-      return {
-        claims: newClaims,
-        products: state.products.map((p) => {
-          if (p.id !== productId) return p;
-          if (stillPending) return p;
-          if (p.status === "CLAIM_PENDING") return { ...p, status: "AVAILABLE" };
-          return p;
-        }),
-      };
-    }
+    case "LOADING":
+      return { ...state, status: "loading" };
+    case "READY":
+      return { ...state, status: "ready" };
+    case "ERROR":
+      return { ...state, status: "error" };
     default:
       return state;
   }
 }
 
 export function SurplusProvider({ children }) {
-  const [state, dispatch] = useReducer(reducer, {
-    products: [],
-    claims: [],
-  });
-  const [catalogStatus, setCatalogStatus] = useState("loading");
+  const [state, dispatch] = useReducer(reducer, { products: [], claims: [], status: "loading" });
+  const { user } = useAuth();
+
+  const fetchAllData = useCallback(async () => {
+    if (!user) return;
+    dispatch({ type: "LOADING" });
+    
+    try {
+      let liveProducts = [];
+      let liveClaims = [];
+
+      console.log("Current User Status:", { id: user.id, role: user.role, email: user.email });
+
+      if (user.role === "MARKET") {
+        liveProducts = await getProductsByOwner(user.id);
+        console.log("Market'in Ham Ürünleri:", liveProducts);
+
+        if (liveProducts.length > 0) {
+          const claimsPromises = liveProducts.map(p => getClaimsByProduct(p.id).catch(() => []));
+          const claimsArrays = await Promise.all(claimsPromises);
+          liveClaims = claimsArrays.flat();
+        }
+      } else {
+        liveProducts = await getAvailableProducts();
+        liveClaims = await getClaimsByClaimant(user.id).catch(() => []);
+      }
+
+      const mappedProducts = liveProducts.map(p => ({
+        id: p.id,
+        name: p.name,
+        categorySlug: p.category?.name?.toLowerCase()?.replace(/\s+/g, '_') || "bakery",
+        categoryName: p.category?.name || "General",
+        quantity: p.quantity || 1,
+        quantityUnit: "kg",
+        expiryDate: p.expiryDate || new Date().toISOString(),
+        marketName: p.market?.organizationName || user.organizationName || "Marketim",
+        ownerKey: p.market?.email || user.email, 
+        status: p.status || "AVAILABLE",
+        createdAt: p.createdAt || new Date().toISOString()
+      }));
+
+      const mappedClaims = liveClaims.map(c => ({
+        id: c.id,
+        productId: c.product?.id,
+        productName: c.product?.name || "Unknown Product",
+        marketName: user.role === "MARKET" ? user.organizationName : (c.product?.market?.organizationName || "Market"),
+        ngoName: c.claimant?.organizationName || c.claimant?.email || "Unknown NGO",
+
+        claimantKey: c.claimant?.email || (user.role === "NGO" ? user.email : "unknown"),
+        requestedQuantity: c.requestedQuantity || 1,
+        status: c.status || "PENDING",
+        createdAt: c.createdAt || new Date().toISOString()
+      }));
+
+      console.log("Final Mapped Claims:", mappedClaims);
+
+      dispatch({ type: "SET_DATA", products: mappedProducts, claims: mappedClaims });
+      dispatch({ type: "READY" });
+    } catch (error) {
+      console.error("Fetch Error:", error);
+      dispatch({ type: "ERROR" });
+    }
+  }, [user]);
 
   useEffect(() => {
-    let cancelled = false;
-    const load = async () => {
-      setCatalogStatus("loading");
-      try {
-        await new Promise((r) => setTimeout(r, 480));
-        if (cancelled) return;
-        const withPendingProduct = applyPendingFromClaims(SEED_PRODUCTS, SEED_CLAIMS);
-        dispatch({ type: "HYDRATE", products: withPendingProduct, claims: [...SEED_CLAIMS] });
-        setCatalogStatus("ready");
-      } catch {
-        if (!cancelled) setCatalogStatus("error");
+    fetchAllData();
+  }, [fetchAllData]);
+
+  const actions = useMemo(() => ({
+    addProduct: async (productData) => {
+        try {
+          const reqDto = {
+            name: productData.name,
+            categoryId: CATEGORY_MAP[productData.categorySlug] || 1,
+            quantity: Number(productData.quantity),
+            expiryDate: productData.expiryDate,
+            ownerId: user.id
+          };
+          await createProduct(reqDto);
+          await fetchAllData();
+        } catch (err) { alert("Error: Product could not be added."); }
+      },
+      addClaim: async (claimData, productId) => {
+        try {
+          await createClaim({
+            productId: Number(productId),
+            claimantId: Number(user.id), 
+            requestedQuantity: Number(claimData.requestedQuantity) || 1
+          });
+          alert("Claim submitted!");
+          await fetchAllData();
+        } catch (err) { alert("Failed to submit claim."); }
+      },
+      resolveClaim: async (claimId, resolution) => {
+        try {
+          resolution === "APPROVED" ? await approveClaim(claimId) : await rejectClaim(claimId);
+          await fetchAllData();
+          alert(`Operation successful: ${resolution}`);
+        } catch (err) { alert(`Operation failed: ${err.message}`); }
       }
-    };
-    load();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+  }), [user, fetchAllData]);
 
-  const value = useMemo(
-    () => ({
-      catalogStatus,
-      products: state.products,
-      claims: state.claims,
-      addProduct: (product) => dispatch({ type: "ADD_PRODUCT", product }),
-      updateProduct: (productId, patch) => dispatch({ type: "UPDATE_PRODUCT", productId, patch }),
-      deleteProduct: (productId) => dispatch({ type: "DELETE_PRODUCT", productId }),
-      addClaim: (claim, productId) => dispatch({ type: "ADD_CLAIM", claim, productId }),
-      updateClaim: (claimId, claimantKey, requestedQuantity) =>
-        dispatch({ type: "UPDATE_CLAIM", claimId, claimantKey, requestedQuantity }),
-      withdrawClaim: (claimId, claimantKey) => dispatch({ type: "WITHDRAW_CLAIM", claimId, claimantKey }),
-      resolveClaim: (claimId, resolution) => dispatch({ type: "RESOLVE_CLAIM", claimId, resolution }),
-    }),
-    [catalogStatus, state.products, state.claims],
-  );
+  const contextValue = useMemo(() => ({
+    catalogStatus: state.status,
+    products: state.products,
+    claims: state.claims,
+    ...actions,
+    refresh: fetchAllData 
+  }), [state, actions, fetchAllData]);
 
-  return <SurplusContext.Provider value={value}>{children}</SurplusContext.Provider>;
+  return <SurplusContext.Provider value={contextValue}>{children}</SurplusContext.Provider>;
 }
 
-export function useSurplus() {
+export const useSurplus = () => {
   const ctx = useContext(SurplusContext);
   if (!ctx) throw new Error("useSurplus must be used within SurplusProvider");
   return ctx;
-}
+};

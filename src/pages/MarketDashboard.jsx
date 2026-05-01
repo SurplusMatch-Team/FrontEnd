@@ -87,10 +87,19 @@ function MarketDashboardInner() {
     e.preventDefault();
     setFormMsg({ type: "", text: "" });
     const qty = Number(form.quantity);
+
     if (!form.name.trim() || !form.expiryDate || Number.isNaN(qty) || qty <= 0) {
       setFormMsg({ type: "err", text: t("market.formErr") });
       return;
     }
+
+    const selectedDate = new Date(form.expiryDate);
+    const now = new Date();
+    if (selectedDate <= now) {
+      setFormMsg({ type: "err", text: "Error: You cannot add products with a past expiry date or with the current time!" });
+      return;
+    }
+
     const catLabel = t(`categories.${form.categorySlug}`);
     const categoryName = catLabel === `categories.${form.categorySlug}` ? t("market.categoryGeneral") : catLabel;
     addProduct({
