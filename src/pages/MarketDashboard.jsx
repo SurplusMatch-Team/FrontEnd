@@ -9,7 +9,7 @@ import { FOOD_CATEGORY_SLUGS } from "../data/categories";
 import { useSurplus } from "../context/SurplusContext";
 import { useAuth } from "../hooks/useAuth";
 import { useI18n } from "../i18n/I18nContext";
-import { displayOrgName } from "../utils/surplusDisplay";
+import { datetimeLocalToApi } from "../utils/surplusApi";
 
 const UNIT_VALUES = ["kg", "crates", "boxes", "portions", "units"];
 
@@ -45,8 +45,6 @@ function MarketDashboardInner() {
   const [formMsg, setFormMsg] = useState({ type: "", text: "" });
 
   const ownerKey = user?.email || "";
-  const orgLabels = { guest: t("common.guest"), member: t("common.member") };
-  const marketDisplayName = displayOrgName(user, orgLabels);
 
   const myProducts = useMemo(
     () => products.filter((p) => p.ownerKey === ownerKey),
@@ -83,7 +81,7 @@ function MarketDashboardInner() {
     navigate("/login", { replace: true });
   };
 
-  const handleAddProduct = (e) => {
+  const handleAddProduct = async (e) => {
     e.preventDefault();
     setFormMsg({ type: "", text: "" });
     const qty = Number(form.quantity);
@@ -102,26 +100,25 @@ function MarketDashboardInner() {
 
     const catLabel = t(`categories.${form.categorySlug}`);
     const categoryName = catLabel === `categories.${form.categorySlug}` ? t("market.categoryGeneral") : catLabel;
-    addProduct({
-      id: crypto.randomUUID(),
-      name: form.name.trim(),
-      categorySlug: form.categorySlug,
-      categoryName,
-      quantity: qty,
-      quantityUnit: form.quantityUnit,
-      expiryDate: new Date(form.expiryDate).toISOString(),
-      marketName: marketDisplayName,
-      status: "AVAILABLE",
-      ownerKey,
-      createdAt: new Date().toISOString(),
-    });
-    setFormMsg({ type: "ok", text: t("market.formOk") });
-    setForm((f) => ({
-      ...f,
-      name: "",
-      quantity: "",
-      expiryDate: "",
-    }));
+    try {
+      await addProduct({
+        name: form.name.trim(),
+        categorySlug: form.categorySlug,
+        categoryName,
+        quantity: qty,
+        quantityUnit: form.quantityUnit,
+        expiryDate: datetimeLocalToApi(form.expiryDate),
+      });
+      setFormMsg({ type: "ok", text: t("market.formOk") });
+      setForm((f) => ({
+        ...f,
+        name: "",
+        quantity: "",
+        expiryDate: "",
+      }));
+    } catch (err) {
+      setFormMsg({ type: "err", text: err?.message || t("market.formErr") });
+    }
   };
 
   return (

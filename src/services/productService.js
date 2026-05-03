@@ -48,16 +48,20 @@ export const getAvailableProducts = async () => {
   }
 };
 
-export const deleteProduct = async (productId) => {
+export const deleteProduct = async (productId, { ownerId }) => {
   try {
-    const res = await API.delete(`/products/${productId}`);
+    const res = await API.delete(`/products/${productId}`, { data: { ownerId } });
     return res.data;
   } catch (error) {
-    throw new Error(error?.response?.data?.message || "Failed to delete product");
+    throw new Error(extractMessage(error, "Failed to delete product"));
   }
 };
 
 export const updateProduct = async (id, data) => {
-  const res = await API.put(`/products/${id}`, data); 
-  return res.data;
+  try {
+    const res = await API.patch(`/products/${id}`, data);
+    return res.data;
+  } catch (error) {
+    throw new Error(extractMessage(error, "Failed to update product"));
+  }
 };

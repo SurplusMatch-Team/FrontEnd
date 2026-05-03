@@ -8,14 +8,11 @@ import {
   updateProduct as apiUpdateProduct 
 } from "../services/productService";
 import { createClaim, getClaimsByProduct, approveClaim, rejectClaim, getClaimsByClaimant } from "../services/claimService";
-import { useAuth } from "../hooks/useAuth"; 
+import { useAuth } from "../hooks/useAuth";
+import { CATEGORY_SLUG_TO_ID, CATEGORY_DB_NAME_TO_SLUG } from "../data/categories";
+import { mapProductUnitForApi } from "../utils/surplusApi";
 
 const SurplusContext = createContext(null);
-
-const CATEGORY_MAP = {
-  "bakery": 1, "fruits": 2, "vegetables": 3, "dairy": 4,
-  "dry_goods": 5, "prepared": 6, "frozen": 7, "beverages": 8
-};
 
 function reducer(state, action) {
   switch (action.type) {
@@ -57,10 +54,13 @@ export function SurplusProvider({ children }) {
         liveClaims = await getClaimsByClaimant(user.id).catch(() => []);
       }
 
-      let mappedProducts = liveProducts.map(p => ({
+      let mappedProducts = liveProducts.map((p) => ({
         id: p.id,
         name: p.name,
-        categorySlug: p.category?.name?.toLowerCase()?.replace(/\s+/g, '_') || "bakery",
+        categorySlug:
+          CATEGORY_DB_NAME_TO_SLUG[p.category?.name] ||
+          p.category?.name?.toLowerCase()?.replace(/\s+/g, "_") ||
+          "bakery",
         categoryName: p.category?.name || "General",
         quantity: p.quantity || 1,
         quantityUnit: "kg",
@@ -104,37 +104,35 @@ export function SurplusProvider({ children }) {
 
   const actions = useMemo(() => ({
     addProduct: async (productData) => {
-        try {
-          const reqDto = {
-            name: productData.name,
-            categoryId: CATEGORY_MAP[productData.categorySlug] || 1,
-            quantity: Number(productData.quantity),
-            expiryDate: productData.expiryDate,
-            ownerId: user.id
-          };
-          await createProduct(reqDto);
-          await fetchAllData();
-        } catch (err) { alert("Error: Product could not be added."); }
+        const reqDto = {
+          name: productData.name,
+          categoryId: CATEGORY_SLUG_TO_ID[productData.categorySlug] ?? 1,
+          quantity: Number(productData.quantity),
+          expiryDate: productData.expiryDate,
+          ownerId: user.id,
+          unit: mapProductUnitForApi(productData.quantityUnit),
+        };
+        await createProduct(reqDto);
+        await fetchAllData();
       },
 
       updateProduct: async (productId, patchData) => {
-        try {
-          await apiUpdateProduct(productId, patchData);
-          await fetchAllData();
-        } catch (err) {
-          console.error("Update Error:", err);
-          alert("Error: Product could not be updated.");
+        const body = { ownerId: user.id };
+        if (patchData.name != null) body.name = patchData.name;
+        if (patchData.quantity != null) body.quantity = patchData.quantity;
+        if (patchData.expiryDate != null) body.expiryDate = patchData.expiryDate;
+        if (patchData.categorySlug != null) {
+          const cid = CATEGORY_SLUG_TO_ID[patchData.categorySlug];
+          if (cid != null) body.categoryId = cid;
         }
+        if (patchData.quantityUnit) body.unit = mapProductUnitForApi(patchData.quantityUnit);
+        await apiUpdateProduct(productId, body);
+        await fetchAllData();
       },
 
       deleteProduct: async (productId) => {
-        try {
-          await apiDeleteProduct(productId);
-          await fetchAllData();
-        } catch (err) {
-          console.error("Delete Error:", err);
-          alert("Error: Product could not be deleted. Check if it has active claims.");
-        }
+        await apiDeleteProduct(productId, { ownerId: user.id });
+        await fetchAllData();
       },
 
       addClaim: async (claimData, productId) => {

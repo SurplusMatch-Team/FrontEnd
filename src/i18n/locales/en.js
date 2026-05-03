@@ -53,7 +53,6 @@ export const en = {
     dairy: "Dairy",
     dry_goods: "Dry goods",
     prepared: "Prepared meals",
-    frozen: "Frozen",
     beverages: "Beverages",
   },
   units: {
@@ -236,6 +235,8 @@ export const en = {
     editLocked: "You cannot edit while a claim is pending. Approve or reject it first.",
     updateOk: "Listing updated.",
     deleteOk: "Listing removed.",
+    deleteErr: "Could not remove listing. Try again or check for active claims.",
+    saveFailed: "Could not save changes. Check your connection or try again.",
     editErrValidation: "Check name, quantity, and use-by date.",
   },
   ngo: {

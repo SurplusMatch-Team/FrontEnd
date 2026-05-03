@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
-import { FOOD_CATEGORY_SLUGS } from "../../data/categories";
+import { FOOD_CATEGORY_SLUGS, CATEGORY_DB_NAME_TO_SLUG } from "../../data/categories";
+import { datetimeLocalToApi } from "../../utils/surplusApi";
 import { useI18n } from "../../i18n/I18nContext";
 import { formatExpiryDate, formatQuantity } from "../../utils/surplusDisplay";
 import { ProductListSection } from "../surplus/ProductListSection";
@@ -19,6 +20,8 @@ function isoToDatetimeLocal(iso) {
 
 function inferCategorySlug(product, t) {
   if (product.categorySlug && FOOD_CATEGORY_SLUGS.includes(product.categorySlug)) return product.categorySlug;
+  const fromDb = product.categoryName && CATEGORY_DB_NAME_TO_SLUG[product.categoryName];
+  if (fromDb) return fromDb;
   const match = FOOD_CATEGORY_SLUGS.find((slug) => t(`categories.${slug}`) === product.categoryName);
   return match || FOOD_CATEGORY_SLUGS[0];
 }
@@ -65,7 +68,7 @@ function MarketMyProductsModal({
     setEditForm(null);
   };
 
-  const saveEdit = (productId) => {
+  const saveEdit = async (productId) => {
     if (!editForm) return;
     const qty = Number(editForm.quantity);
 
@@ -83,25 +86,33 @@ function MarketMyProductsModal({
 
     const catLabel = t(`categories.${editForm.categorySlug}`);
     const categoryName = catLabel === `categories.${editForm.categorySlug}` ? t("market.categoryGeneral") : catLabel;
-    onUpdate(productId, {
-      name: editForm.name.trim(),
-      quantity: qty,
-      quantityUnit: editForm.quantityUnit,
-      expiryDate: new Date(editForm.expiryDate).toISOString(),
-      categorySlug: editForm.categorySlug,
-      categoryName,
-    });
-    setToast({ type: "ok", text: t("market.updateOk") });
-    cancelEdit();
+    try {
+      await onUpdate(productId, {
+        name: editForm.name.trim(),
+        quantity: qty,
+        quantityUnit: editForm.quantityUnit,
+        expiryDate: datetimeLocalToApi(editForm.expiryDate),
+        categorySlug: editForm.categorySlug,
+        categoryName,
+      });
+      setToast({ type: "ok", text: t("market.updateOk") });
+      cancelEdit();
+    } catch (err) {
+      setToast({ type: "err", text: err?.message || t("market.saveFailed") });
+    }
   };
 
-  const confirmDelete = () => {
+  const confirmDelete = async () => {
     if (!deleteTarget) return;
     const id = deleteTarget.id;
-    onDelete(id);
-    if (editingId === id) cancelEdit();
-    setDeleteTarget(null);
-    setToast({ type: "ok", text: t("market.deleteOk") });
+    try {
+      await onDelete(id);
+      if (editingId === id) cancelEdit();
+      setDeleteTarget(null);
+      setToast({ type: "ok", text: t("market.deleteOk") });
+    } catch (err) {
+      setToast({ type: "err", text: err?.message || t("market.deleteErr") });
+    }
   };
 
   const sorted = useMemo(() => {
