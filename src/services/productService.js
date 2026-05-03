@@ -38,3 +38,21 @@ export const getProductsByOwner = async (ownerId) => {
     throw new Error(error?.response?.data?.message || "Failed to fetch your products");
   }
 };
+
+export const getAvailableProducts = async () => {
+  try {
+    const res = await API.get("/products"); 
+    return res.data;
+  } catch (error) {
+    throw new Error(error?.response?.data?.message || "Failed to fetch available products");
+  }
+};
+
+export const deleteProduct = async (productId) => {
+  try {
+    const res = await API.delete(`/products/${productId}`);
+    return res.data;
+  } catch (error) {
+    throw new Error(error?.response?.data?.message || "Failed to delete product");
+  }
+};
