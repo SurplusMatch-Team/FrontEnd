@@ -129,7 +129,7 @@ function NgoDashboardInner() {
     setEditClaimQty("");
   };
 
-  const saveEditClaim = (claim) => {
+  const saveEditClaim = async (claim) => {
     setBanner({ type: "", text: "" });
     const product = products.find((p) => p.id === claim.productId);
     const max = product?.quantity ?? 0;
@@ -145,17 +145,25 @@ function NgoDashboardInner() {
       });
       return;
     }
-    updateClaim(claim.id, ownerKey, next);
-    setBanner({ type: "ok", text: t("ngo.claimUpdateOk") });
-    cancelEditClaim();
+    try {
+      await updateClaim(claim.id, next);
+      setBanner({ type: "ok", text: t("ngo.claimUpdateOk") });
+      cancelEditClaim();
+    } catch (err) {
+      setBanner({ type: "err", text: err?.message || t("ngo.claimUpdateErr") });
+    }
   };
 
-  const confirmWithdraw = () => {
+  const confirmWithdraw = async () => {
     if (!withdrawTarget) return;
-    withdrawClaim(withdrawTarget.id, ownerKey);
-    if (editingClaimId === withdrawTarget.id) cancelEditClaim();
-    setWithdrawTarget(null);
-    setBanner({ type: "ok", text: t("ngo.claimWithdrawOk") });
+    try {
+      await withdrawClaim(withdrawTarget.id);
+      if (editingClaimId === withdrawTarget.id) cancelEditClaim();
+      setWithdrawTarget(null);
+      setBanner({ type: "ok", text: t("ngo.claimWithdrawOk") });
+    } catch (err) {
+      setBanner({ type: "err", text: err?.message || t("ngo.claimWithdrawErr") });
+    }
   };
 
   return (

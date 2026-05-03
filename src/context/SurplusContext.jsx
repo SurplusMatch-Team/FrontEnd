@@ -7,7 +7,15 @@ import {
   deleteProduct as apiDeleteProduct,
   updateProduct as apiUpdateProduct 
 } from "../services/productService";
-import { createClaim, getClaimsByProduct, approveClaim, rejectClaim, getClaimsByClaimant } from "../services/claimService";
+import {
+  createClaim,
+  getClaimsByProduct,
+  approveClaim,
+  rejectClaim,
+  getClaimsByClaimant,
+  patchClaim,
+  withdrawClaimRequest,
+} from "../services/claimService";
 import { useAuth } from "../hooks/useAuth";
 import { CATEGORY_SLUG_TO_ID, CATEGORY_DB_NAME_TO_SLUG } from "../data/categories";
 import { mapProductUnitForApi } from "../utils/surplusApi";
@@ -126,12 +134,12 @@ export function SurplusProvider({ children }) {
           if (cid != null) body.categoryId = cid;
         }
         if (patchData.quantityUnit) body.unit = mapProductUnitForApi(patchData.quantityUnit);
-        await apiUpdateProduct(productId, body);
+        await apiUpdateProduct(Number(productId), body);
         await fetchAllData();
       },
 
       deleteProduct: async (productId) => {
-        await apiDeleteProduct(productId, { ownerId: user.id });
+        await apiDeleteProduct(Number(productId), { ownerId: Number(user.id) });
         await fetchAllData();
       },
 
@@ -145,6 +153,19 @@ export function SurplusProvider({ children }) {
           alert("Claim submitted!");
           await fetchAllData();
         } catch (err) { alert("Failed to submit claim."); }
+      },
+
+      updateClaim: async (claimId, requestedQuantity) => {
+        await patchClaim(Number(claimId), {
+          claimantId: Number(user.id),
+          requestedQuantity: Number(requestedQuantity),
+        });
+        await fetchAllData();
+      },
+
+      withdrawClaim: async (claimId) => {
+        await withdrawClaimRequest(Number(claimId), Number(user.id));
+        await fetchAllData();
       },
 
       // 🛡️ GIGACHAD UPDATE: Stok hatasını yakalayan yeni resolveClaim

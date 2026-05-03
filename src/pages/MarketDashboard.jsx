@@ -47,7 +47,7 @@ function MarketDashboardInner() {
   const ownerKey = user?.email || "";
 
   const myProducts = useMemo(
-    () => products.filter((p) => p.ownerKey === ownerKey),
+    () => products.filter((p) => p.ownerKey === ownerKey && p.status !== "CLOSED"),
     [products, ownerKey],
   );
 
@@ -65,7 +65,7 @@ function MarketDashboardInner() {
   }, [claims, myProducts]);
 
   const metrics = useMemo(() => {
-    const open = myProducts.filter((p) => p.status === "AVAILABLE" || p.status === "CLAIM_PENDING").length;
+    const open = myProducts.filter((p) => p.status === "AVAILABLE" || p.status === "PENDING").length;
     return {
       liveListings: myProducts.length,
       openSlots: open,
@@ -219,6 +219,7 @@ function MarketDashboardInner() {
           open={productsModalOpen}
           onClose={() => setProductsModalOpen(false)}
           products={myProductsSorted}
+          claims={claims}
           loading={loading}
           error={error}
           onUpdate={(productId, patch) => updateProduct(productId, patch)}

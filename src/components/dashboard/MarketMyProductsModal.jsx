@@ -26,10 +26,29 @@ function inferCategorySlug(product, t) {
   return match || FOOD_CATEGORY_SLUGS[0];
 }
 
+/** Edit: no changes while product waits on claims or after an approved rescue. */
+function isProductEditLocked(product, claims) {
+  if (product.status === "PENDING") return true;
+  return (claims || []).some(
+    (c) =>
+      Number(c.productId) === Number(product.id) &&
+      (c.status === "PENDING" || c.status === "APPROVED"),
+  );
+}
+
+/** Delete: only block while a claim still needs market action (pending NGO request). */
+function isProductDeleteLocked(product, claims) {
+  if (product.status === "PENDING") return true;
+  return (claims || []).some(
+    (c) => Number(c.productId) === Number(product.id) && c.status === "PENDING",
+  );
+}
+
 function MarketMyProductsModal({
   open,
   onClose,
   products,
+  claims = [],
   loading,
   error,
   onUpdate,
@@ -49,7 +68,7 @@ function MarketMyProductsModal({
 
   const startEdit = (p) => {
     setToast({ type: "", text: "" });
-    if (p.status === "CLAIM_PENDING") {
+    if (isProductEditLocked(p, claims)) {
       setToast({ type: "err", text: t("market.editLocked") });
       return;
     }
@@ -275,7 +294,13 @@ function MarketMyProductsModal({
                         </button>
                         <button
                           type="button"
-                          onClick={() => setDeleteTarget(p)}
+                          onClick={() => {
+                            if (isProductDeleteLocked(p, claims)) {
+                              setToast({ type: "err", text: t("market.deleteLocked") });
+                              return;
+                            }
+                            setDeleteTarget(p);
+                          }}
                           className="rounded-lg border border-red-400/40 bg-red-500/10 px-3 py-1.5 text-sm font-semibold text-red-200 hover:bg-red-500/20"
                         >
                           {t("market.delete")}

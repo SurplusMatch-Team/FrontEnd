@@ -49,3 +49,21 @@ export const rejectClaim = async (claimId) => {
     throw new Error(extractMessage(error, "Failed to reject claim"));
   }
 };
+
+export const patchClaim = async (claimId, { claimantId, requestedQuantity }) => {
+  try {
+    const res = await API.patch(`/claims/${claimId}`, { claimantId, requestedQuantity });
+    return res.data;
+  } catch (error) {
+    throw new Error(extractMessage(error, "Failed to update claim"));
+  }
+};
+
+export const withdrawClaimRequest = async (claimId, claimantId) => {
+  try {
+    const res = await API.patch(`/claims/${claimId}/withdraw`, { claimantId });
+    return res.data;
+  } catch (error) {
+    throw new Error(extractMessage(error, "Failed to withdraw claim"));
+  }
+};
