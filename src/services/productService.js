@@ -56,3 +56,8 @@ export const deleteProduct = async (productId) => {
     throw new Error(error?.response?.data?.message || "Failed to delete product");
   }
 };
+
+export const updateProduct = async (id, data) => {
+  const res = await API.put(`/products/${id}`, data); 
+  return res.data;
+};

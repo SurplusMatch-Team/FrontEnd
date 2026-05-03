@@ -255,7 +255,7 @@ export const en = {
     availableHint: "Request a quantity the market can realistically hand off.",
     openBrowse: "Browse catalogue ({{n}})",
     browseModalTitle: "Available products",
-    browseModalHint: "Newest first. Filter listings by category tag.",
+    browseModalHint: "Expiring soonest first. Filter listings by category tag.",
     filterByTag: "Tags",
     filterAll: "All",
     browseEmptyFilter: "No listings match this tag. Try another tag or All.",

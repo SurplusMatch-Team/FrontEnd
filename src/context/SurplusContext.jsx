@@ -1,6 +1,12 @@
 /* eslint-disable react-refresh/only-export-components */
-import { createContext, useContext, useEffect, useMemo, useReducer, useState, useCallback } from "react";
-import { getAvailableProducts, getProductsByOwner, createProduct, deleteProduct as apiDeleteProduct } from "../services/productService";
+import { createContext, useContext, useEffect, useMemo, useReducer, useCallback } from "react";
+import { 
+  getAvailableProducts, 
+  getProductsByOwner, 
+  createProduct, 
+  deleteProduct as apiDeleteProduct,
+  updateProduct as apiUpdateProduct 
+} from "../services/productService";
 import { createClaim, getClaimsByProduct, approveClaim, rejectClaim, getClaimsByClaimant } from "../services/claimService";
 import { useAuth } from "../hooks/useAuth"; 
 
@@ -38,23 +44,20 @@ export function SurplusProvider({ children }) {
       let liveProducts = [];
       let liveClaims = [];
 
-      console.log("Current User Status:", { id: user.id, role: user.role, email: user.email });
-
       if (user.role === "MARKET") {
         liveProducts = await getProductsByOwner(user.id);
-        console.log("Market'in Ham Ürünleri:", liveProducts);
-
         if (liveProducts.length > 0) {
           const claimsPromises = liveProducts.map(p => getClaimsByProduct(p.id).catch(() => []));
           const claimsArrays = await Promise.all(claimsPromises);
           liveClaims = claimsArrays.flat();
         }
       } else {
-        liveProducts = await getAvailableProducts();
+        let allProducts = await getAvailableProducts();
+        liveProducts = allProducts.filter(p => p.status === "AVAILABLE"); 
         liveClaims = await getClaimsByClaimant(user.id).catch(() => []);
       }
 
-      const mappedProducts = liveProducts.map(p => ({
+      let mappedProducts = liveProducts.map(p => ({
         id: p.id,
         name: p.name,
         categorySlug: p.category?.name?.toLowerCase()?.replace(/\s+/g, '_') || "bakery",
@@ -62,26 +65,30 @@ export function SurplusProvider({ children }) {
         quantity: p.quantity || 1,
         quantityUnit: "kg",
         expiryDate: p.expiryDate || new Date().toISOString(),
-        marketName: p.market?.organizationName || user.organizationName || "Marketim",
-        ownerKey: p.market?.email || user.email, 
+        marketName: p.owner?.organizationName || user.organizationName || "Marketim",
+        ownerKey: p.owner?.email || user.email, 
         status: p.status || "AVAILABLE",
         createdAt: p.createdAt || new Date().toISOString()
       }));
+
+      if (user.role === "MARKET") {
+        mappedProducts.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+      } else {
+        mappedProducts.sort((a, b) => new Date(a.expiryDate) - new Date(b.expiryDate));
+      }
 
       const mappedClaims = liveClaims.map(c => ({
         id: c.id,
         productId: c.product?.id,
         productName: c.product?.name || "Unknown Product",
-        marketName: user.role === "MARKET" ? user.organizationName : (c.product?.market?.organizationName || "Market"),
+        marketName: user.role === "MARKET" ? user.organizationName : (c.product?.owner?.organizationName || "Market"),
         ngoName: c.claimant?.organizationName || c.claimant?.email || "Unknown NGO",
-
         claimantKey: c.claimant?.email || (user.role === "NGO" ? user.email : "unknown"),
         requestedQuantity: c.requestedQuantity || 1,
         status: c.status || "PENDING",
-        createdAt: c.createdAt || new Date().toISOString()
-      }));
-
-      console.log("Final Mapped Claims:", mappedClaims);
+        createdAt: c.createdAt || new Date().toISOString(),
+        expiryDate: c.product?.expiryDate 
+      })).sort((a, b) => b.id - a.id); 
 
       dispatch({ type: "SET_DATA", products: mappedProducts, claims: mappedClaims });
       dispatch({ type: "READY" });
@@ -109,6 +116,27 @@ export function SurplusProvider({ children }) {
           await fetchAllData();
         } catch (err) { alert("Error: Product could not be added."); }
       },
+
+      updateProduct: async (productId, patchData) => {
+        try {
+          await apiUpdateProduct(productId, patchData);
+          await fetchAllData();
+        } catch (err) {
+          console.error("Update Error:", err);
+          alert("Error: Product could not be updated.");
+        }
+      },
+
+      deleteProduct: async (productId) => {
+        try {
+          await apiDeleteProduct(productId);
+          await fetchAllData();
+        } catch (err) {
+          console.error("Delete Error:", err);
+          alert("Error: Product could not be deleted. Check if it has active claims.");
+        }
+      },
+
       addClaim: async (claimData, productId) => {
         try {
           await createClaim({
@@ -120,12 +148,23 @@ export function SurplusProvider({ children }) {
           await fetchAllData();
         } catch (err) { alert("Failed to submit claim."); }
       },
+
+      // 🛡️ GIGACHAD UPDATE: Stok hatasını yakalayan yeni resolveClaim
       resolveClaim: async (claimId, resolution) => {
         try {
           resolution === "APPROVED" ? await approveClaim(claimId) : await rejectClaim(claimId);
           await fetchAllData();
           alert(`Operation successful: ${resolution}`);
-        } catch (err) { alert(`Operation failed: ${err.message}`); }
+        } catch (err) { 
+          // Muhammet'in 400 hatasını yakalıyoruz
+          const isStockError = err.response?.status === 400 || err.message?.includes("400");
+          
+          if (isStockError && resolution === "APPROVED") {
+            alert("⚠️ Error: Insufficient stock! You cannot approve this claim because the requested quantity exceeds the current stock.");
+          } else {
+            alert(`Operation failed: ${err.response?.data?.message || err.message}`);
+          }
+        }
       }
   }), [user, fetchAllData]);
 
