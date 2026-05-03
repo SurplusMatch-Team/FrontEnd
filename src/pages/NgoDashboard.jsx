@@ -51,23 +51,11 @@ function NgoDashboardInner() {
 
   const browseProducts = useMemo(() => products.filter((p) => p.status !== "ALLOCATED"), [products]);
 
-  const browseProductsSorted = useMemo(() => {
-    return [...browseProducts].sort((a, b) => {
-      const tb = new Date(b.createdAt || 0).getTime();
-      const ta = new Date(a.createdAt || 0).getTime();
-      return tb - ta;
-    });
-  }, [browseProducts]);
+  const browseProductsSorted = browseProducts;
 
   const myClaims = useMemo(() => claims.filter((c) => c.claimantKey === ownerKey), [claims, ownerKey]);
 
-  const myClaimsSorted = useMemo(() => {
-    return [...myClaims].sort((a, b) => {
-      const tb = new Date(b.createdAt || 0).getTime();
-      const ta = new Date(a.createdAt || 0).getTime();
-      return tb - ta;
-    });
-  }, [myClaims]);
+  const myClaimsSorted = myClaims;
 
   const loading = catalogStatus === "loading";
   const error = catalogStatus === "error";
@@ -324,7 +312,7 @@ function NgoDashboardInner() {
                     <p className="mt-2 text-sm text-slate-400">
                       <span className="font-medium text-emerald-100/90">{c.marketName}</span>
                       <span className="text-slate-600"> · </span>
-                      {t("ngo.useBy")} <span className="text-slate-300">{formatExpiryDate(product?.expiryDate)}</span>
+                      {t("ngo.useBy")} <span className="text-slate-300">{formatExpiryDate(c.expiryDate)}</span>
                     </p>
 
                     {isEditing ? (
