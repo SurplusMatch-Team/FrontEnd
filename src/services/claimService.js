@@ -52,7 +52,7 @@ export const rejectClaim = async (claimId) => {
 
 export const patchClaim = async (claimId, { claimantId, requestedQuantity }) => {
   try {
-    const res = await API.patch(`/claims/${claimId}`, { claimantId, requestedQuantity });
+    const res = await API.patch(`/claims/${claimId}/quantity`, { claimantId, requestedQuantity });
     return res.data;
   } catch (error) {
     throw new Error(extractMessage(error, "Failed to update claim"));

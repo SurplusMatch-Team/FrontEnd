@@ -85,18 +85,21 @@ export function SurplusProvider({ children }) {
         mappedProducts.sort((a, b) => new Date(a.expiryDate) - new Date(b.expiryDate));
       }
 
-      const mappedClaims = liveClaims.map(c => ({
-        id: c.id,
-        productId: c.product?.id,
-        productName: c.product?.name || "Unknown Product",
-        marketName: user.role === "MARKET" ? user.organizationName : (c.product?.owner?.organizationName || "Market"),
-        ngoName: c.claimant?.organizationName || c.claimant?.email || "Unknown NGO",
-        claimantKey: c.claimant?.email || (user.role === "NGO" ? user.email : "unknown"),
-        requestedQuantity: c.requestedQuantity || 1,
-        status: c.status || "PENDING",
-        createdAt: c.createdAt || new Date().toISOString(),
-        expiryDate: c.product?.expiryDate 
-      })).sort((a, b) => b.id - a.id); 
+      const mappedClaims = liveClaims.map((c) => {
+        const requestedQty = c.requestedQuantity ?? c.requested_quantity;
+        return {
+          id: c.id,
+          productId: c.product?.id ?? c.productId,
+          productName: c.product?.name || "Unknown Product",
+          marketName: user.role === "MARKET" ? user.organizationName : (c.product?.owner?.organizationName || "Market"),
+          ngoName: c.claimant?.organizationName || c.claimant?.email || "Unknown NGO",
+          claimantKey: c.claimant?.email || (user.role === "NGO" ? user.email : "unknown"),
+          requestedQuantity: requestedQty != null ? Number(requestedQty) : 1,
+          status: c.status || "PENDING",
+          createdAt: c.createdAt || new Date().toISOString(),
+          expiryDate: c.product?.expiryDate,
+        };
+      }).sort((a, b) => b.id - a.id); 
 
       dispatch({ type: "SET_DATA", products: mappedProducts, claims: mappedClaims });
       dispatch({ type: "READY" });
