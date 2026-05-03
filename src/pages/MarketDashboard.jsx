@@ -50,7 +50,7 @@ function MarketDashboardInner() {
   const marketDisplayName = displayOrgName(user, orgLabels);
 
   const myProducts = useMemo(
-    () => products.filter((p) => p.ownerKey === ownerKey),
+    () => products.filter((p) => p.ownerKey === ownerKey && p.status !== "CLOSED"),
     [products, ownerKey],
   );
 
