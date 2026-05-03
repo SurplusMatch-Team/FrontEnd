@@ -16,7 +16,9 @@ export const createClaim = async (claimData) => {
 
 export const getClaimsByClaimant = async (claimantId) => {
   try {
-    const res = await API.get(`/claims/claimant/${claimantId}`);
+    const res = await API.get(`/claims/claimant/${claimantId}`, {
+      params: { _: Date.now() },
+    });
     return res.data;
   } catch (error) {
     throw new Error(extractMessage(error, "Failed to fetch your claims"));
@@ -25,7 +27,9 @@ export const getClaimsByClaimant = async (claimantId) => {
 
 export const getClaimsByProduct = async (productId) => {
   try {
-    const res = await API.get(`/claims/product/${productId}`);
+    const res = await API.get(`/claims/product/${productId}`, {
+      params: { _: Date.now() },
+    });
     return res.data;
   } catch (error) {
     throw new Error(extractMessage(error, "Failed to fetch product claims"));
@@ -51,11 +55,21 @@ export const rejectClaim = async (claimId) => {
 };
 
 export const patchClaim = async (claimId, { claimantId, requestedQuantity }) => {
+  const body = { claimantId, requestedQuantity };
   try {
-    const res = await API.patch(`/claims/${claimId}/quantity`, { claimantId, requestedQuantity });
+    const res = await API.patch(`/claims/${claimId}/quantity`, body);
     return res.data;
-  } catch (error) {
-    throw new Error(extractMessage(error, "Failed to update claim"));
+  } catch (first) {
+    // Older backends only expose PATCH /claims/{id} (no /quantity suffix).
+    if (first?.response?.status === 404) {
+      try {
+        const res = await API.patch(`/claims/${claimId}`, body);
+        return res.data;
+      } catch (second) {
+        throw new Error(extractMessage(second, "Failed to update claim"));
+      }
+    }
+    throw new Error(extractMessage(first, "Failed to update claim"));
   }
 };
 

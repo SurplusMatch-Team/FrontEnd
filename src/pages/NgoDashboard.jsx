@@ -131,7 +131,8 @@ function NgoDashboardInner() {
 
   const saveEditClaim = async (claim) => {
     setBanner({ type: "", text: "" });
-    const product = products.find((p) => p.id === claim.productId);
+    const pid = Number(claim.productId);
+    const product = products.find((p) => Number(p.id) === pid);
     const max = product?.quantity ?? 0;
     const next = Number(editClaimQty);
     if (Number.isNaN(next) || next <= 0) {
@@ -146,7 +147,7 @@ function NgoDashboardInner() {
       return;
     }
     try {
-      await updateClaim(claim.id, next);
+      await updateClaim(Number(claim.id), next);
       setBanner({ type: "ok", text: t("ngo.claimUpdateOk") });
       cancelEditClaim();
     } catch (err) {
@@ -157,7 +158,7 @@ function NgoDashboardInner() {
   const confirmWithdraw = async () => {
     if (!withdrawTarget) return;
     try {
-      await withdrawClaim(withdrawTarget.id);
+      await withdrawClaim(Number(withdrawTarget.id));
       if (editingClaimId === withdrawTarget.id) cancelEditClaim();
       setWithdrawTarget(null);
       setBanner({ type: "ok", text: t("ngo.claimWithdrawOk") });
