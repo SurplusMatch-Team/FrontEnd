@@ -56,21 +56,26 @@ export const rejectClaim = async (claimId) => {
 
 export const patchClaim = async (claimId, { claimantId, requestedQuantity }) => {
   const body = { claimantId, requestedQuantity };
-  try {
-    const res = await API.patch(`/claims/${claimId}/quantity`, body);
-    return res.data;
-  } catch (first) {
-    // Older backends only expose PATCH /claims/{id} (no /quantity suffix).
-    if (first?.response?.status === 404) {
-      try {
-        const res = await API.patch(`/claims/${claimId}`, body);
-        return res.data;
-      } catch (second) {
-        throw new Error(extractMessage(second, "Failed to update claim"));
-      }
+  const id = encodeURIComponent(String(claimId));
+  /** Prefer POST: PATCH bodies are occasionally dropped by proxies / older stacks. */
+  const attempts = [
+    () => API.post(`/claims/${id}/quantity`, body),
+    () => API.patch(`/claims/${id}/quantity`, body),
+    () => API.patch(`/claims/${id}`, body),
+  ];
+  let lastErr;
+  for (const run of attempts) {
+    try {
+      const res = await run();
+      return res.data;
+    } catch (e) {
+      lastErr = e;
+      const st = e?.response?.status;
+      if (st === 404 || st === 405) continue;
+      break;
     }
-    throw new Error(extractMessage(first, "Failed to update claim"));
   }
+  throw new Error(extractMessage(lastErr, "Failed to update claim"));
 };
 
 export const withdrawClaimRequest = async (claimId, claimantId) => {

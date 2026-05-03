@@ -159,8 +159,13 @@ export function SurplusProvider({ children }) {
       },
 
       updateClaim: async (claimId, requestedQuantity) => {
-        await patchClaim(Number(claimId), {
-          claimantId: Number(user.id),
+        const cid = Number(claimId);
+        const uid = Number(user?.id);
+        if (!Number.isFinite(cid) || !Number.isFinite(uid)) {
+          throw new Error("Missing claim or user id. Log out and log in again.");
+        }
+        await patchClaim(cid, {
+          claimantId: uid,
           requestedQuantity: Number(requestedQuantity),
         });
         await fetchAllData();
