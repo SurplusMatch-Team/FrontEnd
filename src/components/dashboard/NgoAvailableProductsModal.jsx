@@ -14,6 +14,7 @@ function NgoAvailableProductsModal({
   qtyByProduct,
   onQtyChange,
   onClaim,
+  claimBusy = false,
 }) {
   const { t } = useI18n();
   const [tagFilter, setTagFilter] = useState(ALL);
@@ -110,6 +111,10 @@ function NgoAvailableProductsModal({
               {t("ngo.browseEmptyFilter")}
             </div>
           ) : (
+            <>
+              <p className="mb-3 rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2 text-[11px] leading-relaxed text-slate-400">
+                {t("ngo.browseQuantityNote")}
+              </p>
             <ul className="space-y-4">
               {filtered.map((p) => (
                 <li key={p.id} className="rounded-2xl ring-1 ring-white/5">
@@ -125,16 +130,18 @@ function NgoAvailableProductsModal({
                             <input
                               type="number"
                               min={1}
+                              disabled={claimBusy}
                               value={qtyByProduct[p.id] ?? ""}
                               onChange={(e) => onQtyChange(p.id, e.target.value)}
-                              className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-900 outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100"
+                              className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-900 outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100 disabled:cursor-not-allowed disabled:opacity-60"
                               placeholder={`${p.quantity}`}
                             />
                           </div>
                           <button
                             type="button"
-                            onClick={() => onClaim(p)}
-                            className="shrink-0 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 px-4 py-2.5 text-sm font-bold text-white shadow-md transition hover:brightness-110"
+                            disabled={claimBusy}
+                            onClick={() => void onClaim(p)}
+                            className="shrink-0 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 px-4 py-2.5 text-sm font-bold text-white shadow-md transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60"
                           >
                             {t("ngo.claim")}
                           </button>
@@ -147,6 +154,7 @@ function NgoAvailableProductsModal({
                 </li>
               ))}
             </ul>
+            </>
           )}
         </div>
       </div>

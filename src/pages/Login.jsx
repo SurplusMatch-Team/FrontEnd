@@ -26,9 +26,9 @@ function Login() {
     try {
       const res = await loginUser(form);
       const token = res?.token || res?.accessToken;
-      const user = res?.user || { email: form.email, role: res?.role || "NGO" };
+      const user = res?.user;
 
-      if (!user?.email && !token) {
+      if (!user?.email || user?.id == null || !Number.isFinite(Number(user.id))) {
         throw new Error(t("login.errUser"));
       }
 

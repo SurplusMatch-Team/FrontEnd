@@ -1,25 +1,30 @@
 import API from "./api";
+import { apiErrorMessage } from "../utils/apiErrorMessage";
+import { asApiArray } from "../utils/surplusApi";
 
-const extractMessage = (error, fallback) =>
-  error?.response?.data?.message || error?.message || fallback;
+const extractMessage = (error, fallback) => apiErrorMessage(error, fallback);
 
 export const createClaim = async (claimData) => {
   try {
-    console.log("Gönderilen Talep Verisi:", claimData); // Buraya bak!
     const res = await API.post("/claims", claimData);
     return res.data;
   } catch (error) {
-    console.error("Backend Hata Detayı:", error.response?.data); // Gerçek hata burada yazar
     throw new Error(extractMessage(error, "Failed to create claim"));
   }
+};
+
+const noStoreHeaders = {
+  "Cache-Control": "no-store, no-cache, must-revalidate",
+  Pragma: "no-cache",
 };
 
 export const getClaimsByClaimant = async (claimantId) => {
   try {
     const res = await API.get(`/claims/claimant/${claimantId}`, {
       params: { _: Date.now() },
+      headers: noStoreHeaders,
     });
-    return res.data;
+    return asApiArray(res.data);
   } catch (error) {
     throw new Error(extractMessage(error, "Failed to fetch your claims"));
   }
@@ -29,8 +34,9 @@ export const getClaimsByProduct = async (productId) => {
   try {
     const res = await API.get(`/claims/product/${productId}`, {
       params: { _: Date.now() },
+      headers: noStoreHeaders,
     });
-    return res.data;
+    return asApiArray(res.data);
   } catch (error) {
     throw new Error(extractMessage(error, "Failed to fetch product claims"));
   }
@@ -55,27 +61,18 @@ export const rejectClaim = async (claimId) => {
 };
 
 export const patchClaim = async (claimId, { claimantId, requestedQuantity }) => {
-  const body = { claimantId, requestedQuantity };
+  const cid = parseInt(String(claimantId), 10);
+  const qty = parseInt(String(requestedQuantity), 10);
+  const body = { claimantId: cid, requestedQuantity: qty };
   const id = encodeURIComponent(String(claimId));
-  /** Prefer POST: PATCH bodies are occasionally dropped by proxies / older stacks. */
-  const attempts = [
-    () => API.post(`/claims/${id}/quantity`, body),
-    () => API.patch(`/claims/${id}/quantity`, body),
-    () => API.patch(`/claims/${id}`, body),
-  ];
-  let lastErr;
-  for (const run of attempts) {
-    try {
-      const res = await run();
-      return res.data;
-    } catch (e) {
-      lastErr = e;
-      const st = e?.response?.status;
-      if (st === 404 || st === 405) continue;
-      break;
-    }
+  try {
+    const res = await API.patch(`/claims/${id}`, body, {
+      headers: { "Content-Type": "application/json", ...noStoreHeaders },
+    });
+    return res.data;
+  } catch (error) {
+    throw new Error(extractMessage(error, "Failed to update claim"));
   }
-  throw new Error(extractMessage(lastErr, "Failed to update claim"));
 };
 
 export const withdrawClaimRequest = async (claimId, claimantId) => {

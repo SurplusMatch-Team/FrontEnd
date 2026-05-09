@@ -15,3 +15,37 @@ export function mapProductUnitForApi(quantityUnit) {
   const map = { kg: "KG", crates: "CRATE", boxes: "BOX", portions: "PORTION", units: "UNIT" };
   return map[u] || "UNIT";
 }
+
+/** Backend `Product.unit` / `ProductUnit` JSON → UI `quantityUnit` slug. */
+export function mapProductUnitFromApi(unit) {
+  if (unit == null || unit === "") return "kg";
+  const n = String(unit).trim().toUpperCase();
+  const map = {
+    KG: "kg",
+    CRATE: "crates",
+    CRATES: "crates",
+    BOX: "boxes",
+    BOXES: "boxes",
+    PORTION: "portions",
+    PORTIONS: "portions",
+    UNIT: "units",
+    UNITS: "units",
+  };
+  if (map[n]) return map[n];
+  const lower = String(unit).trim().toLowerCase();
+  if (["kg", "crates", "boxes", "portions", "units"].includes(lower)) return lower;
+  return "kg";
+}
+
+/** Axios / Spring body may be a raw array or `{ data: [...] }`. */
+export function asApiArray(value) {
+  if (Array.isArray(value)) return value;
+  if (value != null && typeof value === "object" && Array.isArray(value.data)) return value.data;
+  return [];
+}
+
+/** Parse id fields from API (number or numeric string). */
+export function coerceId(value) {
+  const n = Number(value);
+  return Number.isFinite(n) ? n : null;
+}
