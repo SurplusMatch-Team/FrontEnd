@@ -6,6 +6,7 @@ function Topbar({
   role,
   onLogout,
   onOpenChangePassword,
+  showChangePassword = false,
   variant = "light",
   brandTone = "default",
   title,
@@ -89,18 +90,20 @@ function Topbar({
 
           {isMenuOpen ? (
             <div className={`absolute right-0 mt-2 w-52 rounded-xl border p-2 shadow-lg z-20 ${dropdown}`}>
-              <button
-                type="button"
-                onClick={() => {
-                  setIsMenuOpen(false);
-                  onOpenChangePassword();
-                }}
-                className={`w-full rounded-lg px-3 py-2 text-left text-sm font-medium transition ${
-                  variant === "dark" ? "text-slate-200 hover:bg-white/10" : "text-slate-700 hover:bg-slate-100"
-                }`}
-              >
-                {t("topbar.changePassword")}
-              </button>
+              {showChangePassword && typeof onOpenChangePassword === "function" ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsMenuOpen(false);
+                    onOpenChangePassword();
+                  }}
+                  className={`w-full rounded-lg px-3 py-2 text-left text-sm font-medium transition ${
+                    variant === "dark" ? "text-slate-200 hover:bg-white/10" : "text-slate-700 hover:bg-slate-100"
+                  }`}
+                >
+                  {t("topbar.changePassword")}
+                </button>
+              ) : null}
               <button
                 type="button"
                 onClick={onLogout}

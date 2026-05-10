@@ -1,7 +1,8 @@
 import API from "./api";
+import { apiErrorMessage } from "../utils/apiErrorMessage";
+import { asApiArray } from "../utils/surplusApi";
 
-const extractMessage = (error, fallback) =>
-  error?.response?.data?.message || error?.message || fallback;
+const extractMessage = (error, fallback) => apiErrorMessage(error, fallback);
 
 export const getProducts = async () => {
   try {
@@ -33,31 +34,35 @@ export const getUrgentProducts = async () => {
 export const getProductsByOwner = async (ownerId) => {
   try {
     const res = await API.get(`/products/owner/${ownerId}`);
-    return res.data;
+    return asApiArray(res.data);
   } catch (error) {
-    throw new Error(error?.response?.data?.message || "Failed to fetch your products");
+    throw new Error(extractMessage(error, "Failed to fetch your products"));
   }
 };
 
 export const getAvailableProducts = async () => {
   try {
-    const res = await API.get("/products"); 
-    return res.data;
+    const res = await API.get("/products");
+    return asApiArray(res.data);
   } catch (error) {
-    throw new Error(error?.response?.data?.message || "Failed to fetch available products");
+    throw new Error(extractMessage(error, "Failed to fetch available products"));
   }
 };
 
-export const deleteProduct = async (productId) => {
+export const deleteProduct = async (productId, { ownerId }) => {
   try {
-    const res = await API.delete(`/products/${productId}`);
+    const res = await API.delete(`/products/${productId}`, { data: { ownerId } });
     return res.data;
   } catch (error) {
-    throw new Error(error?.response?.data?.message || "Failed to delete product");
+    throw new Error(extractMessage(error, "Failed to delete product"));
   }
 };
 
 export const updateProduct = async (id, data) => {
-  const res = await API.put(`/products/${id}`, data); 
-  return res.data;
+  try {
+    const res = await API.patch(`/products/${id}`, data);
+    return res.data;
+  } catch (error) {
+    throw new Error(extractMessage(error, "Failed to update product"));
+  }
 };

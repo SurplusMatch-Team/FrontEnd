@@ -1,6 +1,5 @@
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import ChangePasswordModal from "../components/dashboard/ChangePasswordModal";
 import NgoAvailableProductsModal from "../components/dashboard/NgoAvailableProductsModal";
 import Topbar from "../components/dashboard/Topbar";
 import RoleGuard from "../components/common/RoleGuard";
@@ -8,7 +7,8 @@ import { ProductListSection } from "../components/surplus/ProductListSection";
 import { useSurplus } from "../context/SurplusContext";
 import { useAuth } from "../hooks/useAuth";
 import { useI18n } from "../i18n/I18nContext";
-import { displayOrgName, formatExpiryDate } from "../utils/surplusDisplay";
+import { formatExpiryDate } from "../utils/surplusDisplay";
+import { MAX_PENDING_CLAIMS_PER_NGO } from "../constants/surplusLimits";
 
 function LeafMark({ className = "" }) {
   return (
@@ -29,6 +29,7 @@ function claimRailClass(status) {
   if (status === "PENDING") return "border-l-amber-400";
   if (status === "APPROVED") return "border-l-emerald-400";
   if (status === "REJECTED") return "border-l-rose-400";
+  if (status === "WITHDRAWN") return "border-l-slate-500";
   return "border-l-slate-500";
 }
 
@@ -36,26 +37,30 @@ function NgoDashboardInner() {
   const navigate = useNavigate();
   const { user, logout } = useAuth();
   const { t } = useI18n();
-  const { catalogStatus, products, claims, addClaim, updateClaim, withdrawClaim } = useSurplus();
-  const [passwordOpen, setPasswordOpen] = useState(false);
+  const { catalogStatus, products, claims, addClaim, withdrawClaim } = useSurplus();
   const [availableModalOpen, setAvailableModalOpen] = useState(false);
   const [qtyByProduct, setQtyByProduct] = useState({});
   const [banner, setBanner] = useState({ type: "", text: "" });
-  const [editingClaimId, setEditingClaimId] = useState(null);
-  const [editClaimQty, setEditClaimQty] = useState("");
   const [withdrawTarget, setWithdrawTarget] = useState(null);
+  const [claimBusy, setClaimBusy] = useState(false);
 
-  const ownerKey = user?.email || "";
-  const orgLabels = { guest: t("common.guest"), member: t("common.member") };
-  const ngoName = displayOrgName(user, orgLabels);
+  const ngoUserId = user?.id != null ? Number(user.id) : NaN;
 
   const browseProducts = useMemo(() => products.filter((p) => p.status !== "ALLOCATED"), [products]);
 
   const browseProductsSorted = browseProducts;
 
-  const myClaims = useMemo(() => claims.filter((c) => c.claimantKey === ownerKey), [claims, ownerKey]);
+  /** Context only loads this NGO's claims via `getClaimsByClaimant`; no client filter (API omits `claimant` in JSON). */
+  const myClaims = useMemo(() => claims, [claims]);
 
-  const myClaimsSorted = myClaims;
+  const myClaimsSorted = useMemo(() => {
+    return [...myClaims].sort((a, b) => Number(b.id) - Number(a.id));
+  }, [myClaims]);
+
+  const pendingClaims = useMemo(() => myClaimsSorted.filter((c) => c.status === "PENDING"), [myClaimsSorted]);
+  const historyClaims = useMemo(() => myClaimsSorted.filter((c) => c.status !== "PENDING"), [myClaimsSorted]);
+
+  const [showClaimHistory, setShowClaimHistory] = useState(false);
 
   const loading = catalogStatus === "loading";
   const error = catalogStatus === "error";
@@ -78,8 +83,12 @@ function NgoDashboardInner() {
     return lbl === key ? u || "units" : lbl;
   };
 
-  const handleClaim = (product) => {
+  const handleClaim = async (product) => {
     setBanner({ type: "", text: "" });
+    if (!Number.isFinite(ngoUserId)) {
+      setBanner({ type: "err", text: t("login.errUser") });
+      return;
+    }
     const raw = qtyByProduct[product.id] ?? "";
     const requested = Number(raw);
     if (Number.isNaN(requested) || requested <= 0) {
@@ -93,22 +102,31 @@ function NgoDashboardInner() {
       });
       return;
     }
-    addClaim(
-      {
-        id: crypto.randomUUID(),
-        productId: product.id,
-        productName: product.name,
-        marketName: product.marketName,
-        ngoName,
-        claimantKey: ownerKey,
-        requestedQuantity: requested,
-        status: "PENDING",
-        createdAt: new Date().toISOString(),
-      },
-      product.id,
+    const pendingCount = myClaims.filter((c) => c.status === "PENDING").length;
+    if (pendingCount >= MAX_PENDING_CLAIMS_PER_NGO) {
+      setBanner({
+        type: "err",
+        text: t("ngo.errMaxPending", { max: MAX_PENDING_CLAIMS_PER_NGO }),
+      });
+      return;
+    }
+    const duplicatePending = myClaims.some(
+      (c) => c.status === "PENDING" && Number(c.productId) === Number(product.id),
     );
-    setQty(product.id, "");
-    setBanner({ type: "ok", text: t("ngo.okClaim") });
+    if (duplicatePending) {
+      setBanner({ type: "err", text: t("ngo.errDuplicateProduct") });
+      return;
+    }
+    setClaimBusy(true);
+    try {
+      await addClaim({ requestedQuantity: requested }, product.id);
+      setQty(product.id, "");
+      setBanner({ type: "ok", text: t("ngo.okClaim") });
+    } catch (err) {
+      setBanner({ type: "err", text: err?.message || t("ngo.claimSubmitErr") });
+    } finally {
+      setClaimBusy(false);
+    }
   };
 
   const claimStatusLabel = (s) => {
@@ -117,45 +135,15 @@ function NgoDashboardInner() {
     return lbl === key ? s : lbl;
   };
 
-  const startEditClaim = (c) => {
-    setBanner({ type: "", text: "" });
-    setWithdrawTarget(null);
-    setEditingClaimId(c.id);
-    setEditClaimQty(String(c.requestedQuantity));
-  };
-
-  const cancelEditClaim = () => {
-    setEditingClaimId(null);
-    setEditClaimQty("");
-  };
-
-  const saveEditClaim = (claim) => {
-    setBanner({ type: "", text: "" });
-    const product = products.find((p) => p.id === claim.productId);
-    const max = product?.quantity ?? 0;
-    const next = Number(editClaimQty);
-    if (Number.isNaN(next) || next <= 0) {
-      setBanner({ type: "err", text: t("ngo.errQty") });
-      return;
-    }
-    if (next > max) {
-      setBanner({
-        type: "err",
-        text: t("ngo.errExceed", { max, unit: unitLabel(product?.quantityUnit) }),
-      });
-      return;
-    }
-    updateClaim(claim.id, ownerKey, next);
-    setBanner({ type: "ok", text: t("ngo.claimUpdateOk") });
-    cancelEditClaim();
-  };
-
-  const confirmWithdraw = () => {
+  const confirmWithdraw = async () => {
     if (!withdrawTarget) return;
-    withdrawClaim(withdrawTarget.id, ownerKey);
-    if (editingClaimId === withdrawTarget.id) cancelEditClaim();
-    setWithdrawTarget(null);
-    setBanner({ type: "ok", text: t("ngo.claimWithdrawOk") });
+    try {
+      await withdrawClaim(Number(withdrawTarget.id));
+      setWithdrawTarget(null);
+      setBanner({ type: "ok", text: t("ngo.claimWithdrawOk") });
+    } catch (err) {
+      setBanner({ type: "err", text: err?.message || t("ngo.claimWithdrawErr") });
+    }
   };
 
   return (
@@ -181,7 +169,6 @@ function NgoDashboardInner() {
             title={t("ngo.title")}
             subtitle={t("ngo.subtitle")}
             onLogout={handleLogout}
-            onOpenChangePassword={() => setPasswordOpen(true)}
           />
         </div>
 
@@ -271,6 +258,7 @@ function NgoDashboardInner() {
           qtyByProduct={qtyByProduct}
           onQtyChange={setQty}
           onClaim={handleClaim}
+          claimBusy={claimBusy}
         />
 
         <section className="mt-14">
@@ -278,6 +266,7 @@ function NgoDashboardInner() {
             <div>
               <p className="text-xs font-bold uppercase tracking-[0.2em] text-teal-300/70">{t("ngo.claimsEyebrow")}</p>
               <h2 className="mt-1 text-2xl font-bold tracking-tight text-white md:text-3xl">{t("ngo.myClaims")}</h2>
+              <p className="mt-2 max-w-xl text-sm text-slate-400">{t("ngo.claimsActiveHint")}</p>
             </div>
             <div className="hidden h-px flex-1 translate-y-[-6px] bg-gradient-to-r from-teal-500/40 via-white/10 to-transparent sm:block" />
           </div>
@@ -291,121 +280,129 @@ function NgoDashboardInner() {
               {t("ngo.emptyClaims")}
             </div>
           ) : (
-            <ul className="grid grid-cols-1 gap-4 md:grid-cols-2">
-              {myClaimsSorted.map((c) => {
-                const isPending = c.status === "PENDING";
-                const isEditing = editingClaimId === c.id;
-                const product = products.find((x) => x.id === c.productId);
-                const rail = claimRailClass(c.status);
+            <>
+              {pendingClaims.length === 0 ? (
+                <div className="rounded-2xl border border-dashed border-white/15 bg-white/[0.04] px-8 py-12 text-center text-sm text-slate-400 backdrop-blur-sm">
+                  {t("ngo.emptyPendingClaims")}
+                </div>
+              ) : (
+                <ul className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                  {pendingClaims.map((c) => {
+                    const rail = claimRailClass(c.status);
+                    return (
+                      <li
+                        key={c.id}
+                        className={`relative overflow-hidden rounded-2xl border border-white/10 bg-white/[0.06] py-4 pl-5 pr-4 shadow-lg backdrop-blur-md transition hover:border-emerald-400/25 hover:bg-white/[0.09] border-l-4 ${rail}`}
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <p className="font-semibold text-white">{c.productName}</p>
+                          <span className="shrink-0 rounded-full border border-white/10 bg-black/30 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-emerald-100/90">
+                            {claimStatusLabel(c.status)}
+                          </span>
+                        </div>
+                        <p className="mt-2 text-sm text-slate-400">
+                          <span className="font-medium text-emerald-100/90">{c.marketName}</span>
+                          <span className="text-slate-600"> · </span>
+                          {t("ngo.useBy")} <span className="text-slate-300">{formatExpiryDate(c.expiryDate)}</span>
+                        </p>
 
-                return (
-                  <li
-                    key={c.id}
-                    className={`relative overflow-hidden rounded-2xl border border-white/10 bg-white/[0.06] py-4 pl-5 pr-4 shadow-lg backdrop-blur-md transition hover:border-emerald-400/25 hover:bg-white/[0.09] border-l-4 ${rail}`}
+                        <p className="mt-3 text-sm text-slate-300">
+                          {t("ngo.askedFor")}{" "}
+                          <span className="font-bold text-lime-200">{c.requestedQuantity}</span> {t("ngo.askedSuffix")}
+                        </p>
+
+                        <div className="mt-4 flex flex-wrap gap-2">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setBanner({ type: "", text: "" });
+                              setWithdrawTarget(c);
+                            }}
+                            className="rounded-lg border border-rose-400/40 bg-rose-500/10 px-3 py-2 text-sm font-semibold text-rose-100 hover:bg-rose-500/20"
+                          >
+                            {t("ngo.claimWithdraw")}
+                          </button>
+                        </div>
+
+                        {withdrawTarget?.id === c.id ? (
+                          <div className="mt-4 rounded-xl border border-rose-500/30 bg-rose-950/40 px-3 py-3 backdrop-blur-sm">
+                            <p className="text-sm font-semibold text-rose-100">{t("ngo.withdrawConfirmTitle")}</p>
+                            <p className="mt-1 text-xs text-rose-200/80">{t("ngo.withdrawConfirmBody")}</p>
+                            <div className="mt-3 flex flex-wrap gap-2">
+                              <button
+                                type="button"
+                                onClick={confirmWithdraw}
+                                className="rounded-lg bg-rose-500 px-3 py-2 text-sm font-bold text-white hover:bg-rose-400"
+                              >
+                                {t("ngo.confirmWithdraw")}
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setWithdrawTarget(null)}
+                                className="rounded-lg border border-white/15 bg-white/10 px-3 py-2 text-sm font-semibold text-white hover:bg-white/15"
+                              >
+                                {t("passwordModal.cancel")}
+                              </button>
+                            </div>
+                          </div>
+                        ) : null}
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+
+              {historyClaims.length > 0 ? (
+                <div className="mt-8">
+                  <button
+                    type="button"
+                    onClick={() => setShowClaimHistory((v) => !v)}
+                    className="rounded-xl border border-white/15 bg-white/[0.06] px-4 py-2.5 text-sm font-semibold text-slate-200 transition hover:bg-white/10"
                   >
-                    <div className="flex items-start justify-between gap-2">
-                      <p className="font-semibold text-white">{c.productName}</p>
-                      <span className="shrink-0 rounded-full border border-white/10 bg-black/30 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-emerald-100/90">
-                        {claimStatusLabel(c.status)}
-                      </span>
+                    {showClaimHistory
+                      ? t("ngo.claimHistoryToggleHide")
+                      : t("ngo.claimHistoryToggleShow", { n: historyClaims.length })}
+                  </button>
+
+                  {showClaimHistory ? (
+                    <div className="mt-4">
+                      <p className="text-xs font-bold uppercase tracking-[0.2em] text-slate-500">{t("ngo.claimHistoryEyebrow")}</p>
+                      <ul className="mt-3 grid grid-cols-1 gap-4 md:grid-cols-2">
+                        {historyClaims.map((c) => {
+                          const rail = claimRailClass(c.status);
+                          return (
+                            <li
+                              key={c.id}
+                              className={`relative overflow-hidden rounded-2xl border border-white/10 bg-white/[0.04] py-4 pl-5 pr-4 shadow-lg backdrop-blur-md border-l-4 ${rail}`}
+                            >
+                              <div className="flex items-start justify-between gap-2">
+                                <p className="font-semibold text-white">{c.productName}</p>
+                                <span className="shrink-0 rounded-full border border-white/10 bg-black/30 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-slate-300">
+                                  {claimStatusLabel(c.status)}
+                                </span>
+                              </div>
+                              <p className="mt-2 text-sm text-slate-500">
+                                <span className="font-medium text-emerald-200/70">{c.marketName}</span>
+                                <span className="text-slate-600"> · </span>
+                                {t("ngo.useBy")} <span className="text-slate-400">{formatExpiryDate(c.expiryDate)}</span>
+                              </p>
+                              <p className="mt-3 text-sm text-slate-500">
+                                {t("ngo.askedFor")}{" "}
+                                <span className="font-semibold text-slate-300">{c.requestedQuantity}</span>{" "}
+                                {t("ngo.askedSuffix")}
+                              </p>
+                            </li>
+                          );
+                        })}
+                      </ul>
                     </div>
-                    <p className="mt-2 text-sm text-slate-400">
-                      <span className="font-medium text-emerald-100/90">{c.marketName}</span>
-                      <span className="text-slate-600"> · </span>
-                      {t("ngo.useBy")} <span className="text-slate-300">{formatExpiryDate(c.expiryDate)}</span>
-                    </p>
-
-                    {isEditing ? (
-                      <div className="mt-4 space-y-2">
-                        <label className="text-[11px] font-bold uppercase tracking-wide text-slate-500">
-                          {t("ngo.reqQty")}
-                        </label>
-                        <input
-                          type="number"
-                          min={1}
-                          max={product?.quantity}
-                          value={editClaimQty}
-                          onChange={(e) => setEditClaimQty(e.target.value)}
-                          className="w-full rounded-xl border border-white/15 bg-black/30 px-3 py-2.5 text-sm text-white outline-none ring-emerald-400/0 transition focus:border-emerald-400/50 focus:ring-2 focus:ring-emerald-500/30"
-                        />
-                        <div className="flex flex-wrap gap-2 pt-1">
-                          <button
-                            type="button"
-                            onClick={() => saveEditClaim(c)}
-                            className="rounded-lg bg-gradient-to-r from-emerald-500 to-teal-500 px-3 py-2 text-sm font-bold text-emerald-950 hover:brightness-110"
-                          >
-                            {t("ngo.claimSave")}
-                          </button>
-                          <button
-                            type="button"
-                            onClick={cancelEditClaim}
-                            className="rounded-lg border border-white/15 bg-white/5 px-3 py-2 text-sm font-semibold text-slate-200 hover:bg-white/10"
-                          >
-                            {t("ngo.claimEditCancel")}
-                          </button>
-                        </div>
-                      </div>
-                    ) : (
-                      <p className="mt-3 text-sm text-slate-300">
-                        {t("ngo.askedFor")}{" "}
-                        <span className="font-bold text-lime-200">{c.requestedQuantity}</span> {t("ngo.askedSuffix")}
-                      </p>
-                    )}
-
-                    {isPending && !isEditing ? (
-                      <div className="mt-4 flex flex-wrap gap-2">
-                        <button
-                          type="button"
-                          onClick={() => startEditClaim(c)}
-                          className="rounded-lg border border-emerald-400/40 bg-emerald-500/15 px-3 py-2 text-sm font-semibold text-emerald-100 hover:bg-emerald-500/25"
-                        >
-                          {t("ngo.claimEdit")}
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setBanner({ type: "", text: "" });
-                            setEditingClaimId(null);
-                            setWithdrawTarget(c);
-                          }}
-                          className="rounded-lg border border-rose-400/40 bg-rose-500/10 px-3 py-2 text-sm font-semibold text-rose-100 hover:bg-rose-500/20"
-                        >
-                          {t("ngo.claimWithdraw")}
-                        </button>
-                      </div>
-                    ) : null}
-
-                    {withdrawTarget?.id === c.id ? (
-                      <div className="mt-4 rounded-xl border border-rose-500/30 bg-rose-950/40 px-3 py-3 backdrop-blur-sm">
-                        <p className="text-sm font-semibold text-rose-100">{t("ngo.withdrawConfirmTitle")}</p>
-                        <p className="mt-1 text-xs text-rose-200/80">{t("ngo.withdrawConfirmBody")}</p>
-                        <div className="mt-3 flex flex-wrap gap-2">
-                          <button
-                            type="button"
-                            onClick={confirmWithdraw}
-                            className="rounded-lg bg-rose-500 px-3 py-2 text-sm font-bold text-white hover:bg-rose-400"
-                          >
-                            {t("ngo.confirmWithdraw")}
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => setWithdrawTarget(null)}
-                            className="rounded-lg border border-white/15 bg-white/10 px-3 py-2 text-sm font-semibold text-white hover:bg-white/15"
-                          >
-                            {t("passwordModal.cancel")}
-                          </button>
-                        </div>
-                      </div>
-                    ) : null}
-                  </li>
-                );
-              })}
-            </ul>
+                  ) : null}
+                </div>
+              ) : null}
+            </>
           )}
         </section>
       </div>
-
-      <ChangePasswordModal isOpen={passwordOpen} onClose={() => setPasswordOpen(false)} />
     </main>
   );
 }

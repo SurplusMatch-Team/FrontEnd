@@ -7,20 +7,74 @@ import {
   deleteProduct as apiDeleteProduct,
   updateProduct as apiUpdateProduct 
 } from "../services/productService";
-import { createClaim, getClaimsByProduct, approveClaim, rejectClaim, getClaimsByClaimant } from "../services/claimService";
-import { useAuth } from "../hooks/useAuth"; 
+import {
+  createClaim,
+  getClaimsByProduct,
+  approveClaim,
+  rejectClaim,
+  getClaimsByClaimant,
+  patchClaim,
+  withdrawClaimRequest,
+} from "../services/claimService";
+import { useAuth } from "../hooks/useAuth";
+import { CATEGORY_SLUG_TO_ID, CATEGORY_DB_NAME_TO_SLUG } from "../data/categories";
+import { mapProductUnitForApi, mapProductUnitFromApi, coerceId } from "../utils/surplusApi";
 
 const SurplusContext = createContext(null);
 
-const CATEGORY_MAP = {
-  "bakery": 1, "fruits": 2, "vegetables": 3, "dairy": 4,
-  "dry_goods": 5, "prepared": 6, "frozen": 7, "beverages": 8
-};
+function requireNumericUserId(user) {
+  const id = Number(user?.id);
+  if (!Number.isFinite(id)) {
+    throw new Error("Missing account id. Please log out and log in again.");
+  }
+  return id;
+}
+
+/** Map API claim (nested product/claimant) to dashboard row shape. */
+function mapApiClaimToRow(c, user) {
+  const role = String(user?.role || "").toUpperCase();
+  const requestedQty = c.requestedQuantity ?? c.requested_quantity;
+  const fromProd =
+    c.product != null && typeof c.product === "object"
+      ? c.product.id
+      : typeof c.product === "number"
+        ? c.product
+        : undefined;
+  const productId = coerceId(fromProd ?? c.productId ?? c.product_id);
+  const claimId = coerceId(c.id);
+  const status = String(c.status ?? "PENDING").toUpperCase();
+
+  return {
+    id: claimId ?? 0,
+    productId: productId == null ? null : productId,
+    productName: (c.product != null && typeof c.product === "object" && c.product.name) || "Unknown Product",
+    marketName:
+      role === "MARKET"
+        ? user.organizationName
+        : c.product?.owner?.organizationName || "Market",
+    ngoName: c.claimant?.organizationName || c.claimant?.email || "Unknown NGO",
+    claimantId: coerceId(c.claimant?.id ?? c.claimantId ?? c.claimant_id),
+    claimantKey:
+      c.claimant?.email ||
+      (role === "NGO" ? user?.email : null) ||
+      "unknown",
+    requestedQuantity: requestedQty != null ? Number(requestedQty) : 1,
+    status,
+    createdAt: c.createdAt || c.claimDate || new Date().toISOString(),
+    expiryDate: c.product?.expiryDate ?? c.product?.expiry_date,
+  };
+}
 
 function reducer(state, action) {
   switch (action.type) {
-    case "SET_DATA": 
+    case "SET_DATA":
       return { ...state, products: action.products, claims: action.claims };
+    case "MERGE_CLAIM": {
+      const id = Number(action.claim.id);
+      const filtered = state.claims.filter((cl) => Number(cl.id) !== id);
+      const nextClaims = [action.claim, ...filtered].sort((a, b) => Number(b.id) - Number(a.id));
+      return { ...state, claims: nextClaims };
+    }
     case "LOADING":
       return { ...state, status: "loading" };
     case "READY":
@@ -44,8 +98,12 @@ export function SurplusProvider({ children }) {
       let liveProducts = [];
       let liveClaims = [];
 
-      if (user.role === "MARKET") {
-        liveProducts = await getProductsByOwner(user.id);
+      const uid = Number(user.id);
+      const ownerPathId = Number.isFinite(uid) ? uid : user.id;
+      const role = String(user?.role || "").toUpperCase();
+
+      if (role === "MARKET") {
+        liveProducts = await getProductsByOwner(ownerPathId);
         if (liveProducts.length > 0) {
           const claimsPromises = liveProducts.map(p => getClaimsByProduct(p.id).catch(() => []));
           const claimsArrays = await Promise.all(claimsPromises);
@@ -53,17 +111,23 @@ export function SurplusProvider({ children }) {
         }
       } else {
         let allProducts = await getAvailableProducts();
-        liveProducts = allProducts.filter(p => p.status === "AVAILABLE"); 
-        liveClaims = await getClaimsByClaimant(user.id).catch(() => []);
+        liveProducts = allProducts.filter(
+          (p) => String(p.status || "").toUpperCase() === "AVAILABLE",
+        );
+        liveClaims = await getClaimsByClaimant(ownerPathId).catch(() => []);
       }
 
-      let mappedProducts = liveProducts.map(p => ({
-        id: p.id,
+      let mappedProducts = liveProducts.map((p) => ({
+        id: coerceId(p.id) ?? p.id,
+        ownerId: coerceId(p.owner?.id) ?? p.owner?.id,
         name: p.name,
-        categorySlug: p.category?.name?.toLowerCase()?.replace(/\s+/g, '_') || "bakery",
+        categorySlug:
+          CATEGORY_DB_NAME_TO_SLUG[p.category?.name] ||
+          p.category?.name?.toLowerCase()?.replace(/\s+/g, "_") ||
+          "bakery",
         categoryName: p.category?.name || "General",
         quantity: p.quantity || 1,
-        quantityUnit: "kg",
+        quantityUnit: mapProductUnitFromApi(p.unit),
         expiryDate: p.expiryDate || new Date().toISOString(),
         marketName: p.owner?.organizationName || user.organizationName || "Marketim",
         ownerKey: p.owner?.email || user.email, 
@@ -71,24 +135,15 @@ export function SurplusProvider({ children }) {
         createdAt: p.createdAt || new Date().toISOString()
       }));
 
-      if (user.role === "MARKET") {
+      if (role === "MARKET") {
         mappedProducts.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
       } else {
         mappedProducts.sort((a, b) => new Date(a.expiryDate) - new Date(b.expiryDate));
       }
 
-      const mappedClaims = liveClaims.map(c => ({
-        id: c.id,
-        productId: c.product?.id,
-        productName: c.product?.name || "Unknown Product",
-        marketName: user.role === "MARKET" ? user.organizationName : (c.product?.owner?.organizationName || "Market"),
-        ngoName: c.claimant?.organizationName || c.claimant?.email || "Unknown NGO",
-        claimantKey: c.claimant?.email || (user.role === "NGO" ? user.email : "unknown"),
-        requestedQuantity: c.requestedQuantity || 1,
-        status: c.status || "PENDING",
-        createdAt: c.createdAt || new Date().toISOString(),
-        expiryDate: c.product?.expiryDate 
-      })).sort((a, b) => b.id - a.id); 
+      const mappedClaims = liveClaims
+        .map((c) => mapApiClaimToRow(c, user))
+        .sort((a, b) => Number(b.id) - Number(a.id));
 
       dispatch({ type: "SET_DATA", products: mappedProducts, claims: mappedClaims });
       dispatch({ type: "READY" });
@@ -104,68 +159,72 @@ export function SurplusProvider({ children }) {
 
   const actions = useMemo(() => ({
     addProduct: async (productData) => {
-        try {
-          const reqDto = {
-            name: productData.name,
-            categoryId: CATEGORY_MAP[productData.categorySlug] || 1,
-            quantity: Number(productData.quantity),
-            expiryDate: productData.expiryDate,
-            ownerId: user.id
-          };
-          await createProduct(reqDto);
-          await fetchAllData();
-        } catch (err) { alert("Error: Product could not be added."); }
+        const ownerId = requireNumericUserId(user);
+        const reqDto = {
+          name: productData.name,
+          categoryId: CATEGORY_SLUG_TO_ID[productData.categorySlug] ?? 1,
+          quantity: Number(productData.quantity),
+          expiryDate: productData.expiryDate,
+          ownerId,
+          unit: mapProductUnitForApi(productData.quantityUnit),
+        };
+        await createProduct(reqDto);
+        await fetchAllData();
       },
 
       updateProduct: async (productId, patchData) => {
-        try {
-          await apiUpdateProduct(productId, patchData);
-          await fetchAllData();
-        } catch (err) {
-          console.error("Update Error:", err);
-          alert("Error: Product could not be updated.");
+        const body = { ownerId: requireNumericUserId(user) };
+        if (patchData.name != null) body.name = patchData.name;
+        if (patchData.quantity != null) body.quantity = patchData.quantity;
+        if (patchData.expiryDate != null) body.expiryDate = patchData.expiryDate;
+        if (patchData.categorySlug != null) {
+          const cid = CATEGORY_SLUG_TO_ID[patchData.categorySlug];
+          if (cid != null) body.categoryId = cid;
         }
+        if (patchData.quantityUnit) body.unit = mapProductUnitForApi(patchData.quantityUnit);
+        await apiUpdateProduct(Number(productId), body);
+        await fetchAllData();
       },
 
       deleteProduct: async (productId) => {
-        try {
-          await apiDeleteProduct(productId);
-          await fetchAllData();
-        } catch (err) {
-          console.error("Delete Error:", err);
-          alert("Error: Product could not be deleted. Check if it has active claims.");
-        }
+        await apiDeleteProduct(Number(productId), { ownerId: requireNumericUserId(user) });
+        await fetchAllData();
       },
 
       addClaim: async (claimData, productId) => {
-        try {
-          await createClaim({
-            productId: Number(productId),
-            claimantId: Number(user.id), 
-            requestedQuantity: Number(claimData.requestedQuantity) || 1
-          });
-          alert("Claim submitted!");
-          await fetchAllData();
-        } catch (err) { alert("Failed to submit claim."); }
+        const claimantId = requireNumericUserId(user);
+        await createClaim({
+          productId: Number(productId),
+          claimantId,
+          requestedQuantity: Number(claimData.requestedQuantity) || 1,
+        });
+        await fetchAllData();
       },
 
-      // 🛡️ GIGACHAD UPDATE: Stok hatasını yakalayan yeni resolveClaim
-      resolveClaim: async (claimId, resolution) => {
-        try {
-          resolution === "APPROVED" ? await approveClaim(claimId) : await rejectClaim(claimId);
-          await fetchAllData();
-          alert(`Operation successful: ${resolution}`);
-        } catch (err) { 
-          // Muhammet'in 400 hatasını yakalıyoruz
-          const isStockError = err.response?.status === 400 || err.message?.includes("400");
-          
-          if (isStockError && resolution === "APPROVED") {
-            alert("⚠️ Error: Insufficient stock! You cannot approve this claim because the requested quantity exceeds the current stock.");
-          } else {
-            alert(`Operation failed: ${err.response?.data?.message || err.message}`);
-          }
+      updateClaim: async (claimId, requestedQuantity) => {
+        const cid = Number(claimId);
+        const uid = requireNumericUserId(user);
+        if (!Number.isFinite(cid)) {
+          throw new Error("Missing claim id. Log out and log in again.");
         }
-      }
+        const qty = parseInt(String(requestedQuantity), 10);
+        if (!Number.isFinite(qty) || qty < 1) {
+          throw new Error("Invalid requested quantity.");
+        }
+        await patchClaim(cid, { claimantId: uid, requestedQuantity: qty });
+        await fetchAllData();
+      },
+
+      withdrawClaim: async (claimId) => {
+        await withdrawClaimRequest(Number(claimId), requireNumericUserId(user));
+        await fetchAllData();
+      },
+
+      resolveClaim: async (claimId, resolution) => {
+        if (resolution === "APPROVED") await approveClaim(claimId);
+        else await rejectClaim(claimId);
+        await fetchAllData();
+      },
   }), [user, fetchAllData]);
 
   const contextValue = useMemo(() => ({

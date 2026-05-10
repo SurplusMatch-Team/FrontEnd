@@ -1,7 +1,8 @@
 import { useMemo, useState } from "react";
-import { FOOD_CATEGORY_SLUGS } from "../../data/categories";
+import { FOOD_CATEGORY_SLUGS, CATEGORY_DB_NAME_TO_SLUG } from "../../data/categories";
+import { datetimeLocalToApi } from "../../utils/surplusApi";
 import { useI18n } from "../../i18n/I18nContext";
-import { formatExpiryDate, formatQuantity } from "../../utils/surplusDisplay";
+import { formatExpiryDate, formatQuantity, sumPendingRequestedForProduct } from "../../utils/surplusDisplay";
 import { ProductListSection } from "../surplus/ProductListSection";
 
 const UNIT_VALUES = ["kg", "crates", "boxes", "portions", "units"];
@@ -19,14 +20,35 @@ function isoToDatetimeLocal(iso) {
 
 function inferCategorySlug(product, t) {
   if (product.categorySlug && FOOD_CATEGORY_SLUGS.includes(product.categorySlug)) return product.categorySlug;
+  const fromDb = product.categoryName && CATEGORY_DB_NAME_TO_SLUG[product.categoryName];
+  if (fromDb) return fromDb;
   const match = FOOD_CATEGORY_SLUGS.find((slug) => t(`categories.${slug}`) === product.categoryName);
   return match || FOOD_CATEGORY_SLUGS[0];
+}
+
+/** Edit: block only while the listing waits on a pending NGO request (partial approve → still editable). */
+function isProductEditLocked(product, claims) {
+  if (product.status === "PENDING") return true;
+  return (claims || []).some((c) => {
+    const pending = String(c.status || "").toUpperCase() === "PENDING";
+    return pending && Number(c.productId) === Number(product.id);
+  });
+}
+
+/** Delete: only block while a claim still needs market action (pending NGO request). */
+function isProductDeleteLocked(product, claims) {
+  if (product.status === "PENDING") return true;
+  return (claims || []).some((c) => {
+    const pending = String(c.status || "").toUpperCase() === "PENDING";
+    return pending && Number(c.productId) === Number(product.id);
+  });
 }
 
 function MarketMyProductsModal({
   open,
   onClose,
   products,
+  claims = [],
   loading,
   error,
   onUpdate,
@@ -46,7 +68,7 @@ function MarketMyProductsModal({
 
   const startEdit = (p) => {
     setToast({ type: "", text: "" });
-    if (p.status === "CLAIM_PENDING") {
+    if (isProductEditLocked(p, claims)) {
       setToast({ type: "err", text: t("market.editLocked") });
       return;
     }
@@ -65,7 +87,7 @@ function MarketMyProductsModal({
     setEditForm(null);
   };
 
-  const saveEdit = (productId) => {
+  const saveEdit = async (productId) => {
     if (!editForm) return;
     const qty = Number(editForm.quantity);
 
@@ -83,25 +105,33 @@ function MarketMyProductsModal({
 
     const catLabel = t(`categories.${editForm.categorySlug}`);
     const categoryName = catLabel === `categories.${editForm.categorySlug}` ? t("market.categoryGeneral") : catLabel;
-    onUpdate(productId, {
-      name: editForm.name.trim(),
-      quantity: qty,
-      quantityUnit: editForm.quantityUnit,
-      expiryDate: new Date(editForm.expiryDate).toISOString(),
-      categorySlug: editForm.categorySlug,
-      categoryName,
-    });
-    setToast({ type: "ok", text: t("market.updateOk") });
-    cancelEdit();
+    try {
+      await onUpdate(productId, {
+        name: editForm.name.trim(),
+        quantity: qty,
+        quantityUnit: editForm.quantityUnit,
+        expiryDate: datetimeLocalToApi(editForm.expiryDate),
+        categorySlug: editForm.categorySlug,
+        categoryName,
+      });
+      setToast({ type: "ok", text: t("market.updateOk") });
+      cancelEdit();
+    } catch (err) {
+      setToast({ type: "err", text: err?.message || t("market.saveFailed") });
+    }
   };
 
-  const confirmDelete = () => {
+  const confirmDelete = async () => {
     if (!deleteTarget) return;
     const id = deleteTarget.id;
-    onDelete(id);
-    if (editingId === id) cancelEdit();
-    setDeleteTarget(null);
-    setToast({ type: "ok", text: t("market.deleteOk") });
+    try {
+      await onDelete(id);
+      if (editingId === id) cancelEdit();
+      setDeleteTarget(null);
+      setToast({ type: "ok", text: t("market.deleteOk") });
+    } catch (err) {
+      setToast({ type: "err", text: err?.message || t("market.deleteErr") });
+    }
   };
 
   const sorted = useMemo(() => {
@@ -174,7 +204,10 @@ function MarketMyProductsModal({
             isEmpty={!loading && !error && sorted.length === 0}
           >
             <ul className="space-y-3">
-              {sorted.map((p) => (
+              {sorted.map((p) => {
+                const pendingReserved = sumPendingRequestedForProduct(claims, p.id);
+                const editLocked = isProductEditLocked(p, claims);
+                return (
                 <li key={p.id} className="rounded-2xl border border-white/10 bg-slate-950/55 p-3 ring-1 ring-white/5 sm:p-4">
                   {editingId === p.id && editForm ? (
                     <div className="space-y-3">
@@ -249,6 +282,11 @@ function MarketMyProductsModal({
                             {formatQuantity(p)} · {t("productCard.useBy")}{" "}
                             {formatExpiryDate(p.expiryDate)}
                           </p>
+                          {pendingReserved > 0 ? (
+                            <p className="mt-1.5 text-[11px] leading-snug text-amber-200/85">
+                              {t("market.pendingReservedHint", { n: pendingReserved })}
+                            </p>
+                          ) : null}
                         </div>
                         <span className="shrink-0 self-start rounded-full border border-white/15 bg-white/5 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-slate-300">
                           {statusLabel(p.status)}
@@ -257,14 +295,24 @@ function MarketMyProductsModal({
                       <div className="mt-3 flex flex-wrap gap-2">
                         <button
                           type="button"
+                          disabled={editLocked}
+                          title={editLocked ? t("market.editLocked") : undefined}
                           onClick={() => startEdit(p)}
-                          className="rounded-lg border border-cyan-400/40 bg-cyan-500/15 px-3 py-1.5 text-sm font-semibold text-cyan-100 hover:bg-cyan-500/25"
+                          className={`rounded-lg border border-cyan-400/40 bg-cyan-500/15 px-3 py-1.5 text-sm font-semibold text-cyan-100 hover:bg-cyan-500/25 ${
+                            editLocked ? "cursor-not-allowed opacity-40 hover:bg-cyan-500/15" : ""
+                          }`}
                         >
                           {t("market.edit")}
                         </button>
                         <button
                           type="button"
-                          onClick={() => setDeleteTarget(p)}
+                          onClick={() => {
+                            if (isProductDeleteLocked(p, claims)) {
+                              setToast({ type: "err", text: t("market.deleteLocked") });
+                              return;
+                            }
+                            setDeleteTarget(p);
+                          }}
                           className="rounded-lg border border-red-400/40 bg-red-500/10 px-3 py-1.5 text-sm font-semibold text-red-200 hover:bg-red-500/20"
                         >
                           {t("market.delete")}
@@ -273,7 +321,8 @@ function MarketMyProductsModal({
                     </>
                   )}
                 </li>
-              ))}
+              );
+              })}
             </ul>
           </ProductListSection>
         </div>

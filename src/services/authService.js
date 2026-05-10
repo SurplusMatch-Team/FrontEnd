@@ -1,10 +1,10 @@
 import API from "./api";
+import { apiErrorMessage } from "../utils/apiErrorMessage";
 
 const TOKEN_KEY = "replate_auth_token";
 const USER_KEY = "replate_auth_user";
 
-const extractMessage = (error, fallback) =>
-  error?.response?.data?.message || error?.message || fallback;
+const extractMessage = (error, fallback) => apiErrorMessage(error, fallback);
 
 export const setAuthToken = (token, user) => {
   if (token) {

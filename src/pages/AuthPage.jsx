@@ -14,6 +14,8 @@ function AuthPage({ mode = "login" }) {
     login({
       token: `demo-token-${role.toLowerCase()}`,
       user: {
+        /** Placeholder ids for UI demo; use real login for API-backed data. */
+        id: role === "MARKET" ? 90001 : 90002,
         email: role === "MARKET" ? "market-demo@replate.local" : "ngo-demo@replate.local",
         role,
         organizationName: role === "MARKET" ? "Sunrise Market Co-op" : "Community Plate NGO",

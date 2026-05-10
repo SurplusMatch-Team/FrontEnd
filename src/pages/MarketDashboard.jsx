@@ -1,6 +1,5 @@
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import ChangePasswordModal from "../components/dashboard/ChangePasswordModal";
 import MarketMyProductsModal from "../components/dashboard/MarketMyProductsModal";
 import Topbar from "../components/dashboard/Topbar";
 import RoleGuard from "../components/common/RoleGuard";
@@ -9,7 +8,7 @@ import { FOOD_CATEGORY_SLUGS } from "../data/categories";
 import { useSurplus } from "../context/SurplusContext";
 import { useAuth } from "../hooks/useAuth";
 import { useI18n } from "../i18n/I18nContext";
-import { displayOrgName } from "../utils/surplusDisplay";
+import { datetimeLocalToApi, coerceId } from "../utils/surplusApi";
 
 const UNIT_VALUES = ["kg", "crates", "boxes", "portions", "units"];
 
@@ -33,8 +32,8 @@ function MarketDashboardInner() {
   const { user, logout } = useAuth();
   const { t } = useI18n();
   const { catalogStatus, products, claims, addProduct, updateProduct, deleteProduct, resolveClaim } = useSurplus();
-  const [passwordOpen, setPasswordOpen] = useState(false);
   const [productsModalOpen, setProductsModalOpen] = useState(false);
+  const [inboxMsg, setInboxMsg] = useState({ type: "", text: "" });
   const [form, setForm] = useState({
     name: "",
     quantity: "",
@@ -45,13 +44,17 @@ function MarketDashboardInner() {
   const [formMsg, setFormMsg] = useState({ type: "", text: "" });
 
   const ownerKey = user?.email || "";
-  const orgLabels = { guest: t("common.guest"), member: t("common.member") };
-  const marketDisplayName = displayOrgName(user, orgLabels);
+  const marketUserId = user?.id != null ? Number(user.id) : NaN;
 
-  const myProducts = useMemo(
-    () => products.filter((p) => p.ownerKey === ownerKey),
-    [products, ownerKey],
-  );
+  const myProducts = useMemo(() => {
+    return products.filter((p) => {
+      if (p.status === "CLOSED") return false;
+      if (Number.isFinite(marketUserId) && p.ownerId != null) {
+        return Number(p.ownerId) === marketUserId;
+      }
+      return p.ownerKey === ownerKey;
+    });
+  }, [products, ownerKey, marketUserId]);
 
   const myProductsSorted = useMemo(() => {
     return [...myProducts].sort((a, b) => {
@@ -62,12 +65,18 @@ function MarketDashboardInner() {
   }, [myProducts]);
 
   const incomingClaims = useMemo(() => {
-    const myIds = new Set(myProducts.map((p) => p.id));
-    return claims.filter((c) => myIds.has(c.productId) && c.status === "PENDING");
+    const myIds = new Set(
+      myProducts.map((p) => coerceId(p.id)).filter((id) => id != null),
+    );
+    return claims.filter((c) => {
+      const pid = coerceId(c.productId);
+      const pending = String(c.status || "").toUpperCase() === "PENDING";
+      return pid != null && myIds.has(pid) && pending;
+    });
   }, [claims, myProducts]);
 
   const metrics = useMemo(() => {
-    const open = myProducts.filter((p) => p.status === "AVAILABLE" || p.status === "CLAIM_PENDING").length;
+    const open = myProducts.filter((p) => p.status === "AVAILABLE" || p.status === "PENDING").length;
     return {
       liveListings: myProducts.length,
       openSlots: open,
@@ -83,7 +92,28 @@ function MarketDashboardInner() {
     navigate("/login", { replace: true });
   };
 
-  const handleAddProduct = (e) => {
+  const handleResolveClaim = async (claimId, resolution) => {
+    setInboxMsg({ type: "", text: "" });
+    try {
+      await resolveClaim(claimId, resolution);
+      setInboxMsg({
+        type: "ok",
+        text: resolution === "APPROVED" ? t("market.resolveApproveOk") : t("market.resolveRejectOk"),
+      });
+    } catch (err) {
+      const msg = err?.message || t("market.resolveFail");
+      const low = String(msg).toLowerCase();
+      const stockHint =
+        resolution === "APPROVED" &&
+        (low.includes("insufficient") || low.includes("exceed") || low.includes("quantity"));
+      setInboxMsg({
+        type: "err",
+        text: stockHint ? t("market.resolveStockFail") : msg,
+      });
+    }
+  };
+
+  const handleAddProduct = async (e) => {
     e.preventDefault();
     setFormMsg({ type: "", text: "" });
     const qty = Number(form.quantity);
@@ -102,26 +132,25 @@ function MarketDashboardInner() {
 
     const catLabel = t(`categories.${form.categorySlug}`);
     const categoryName = catLabel === `categories.${form.categorySlug}` ? t("market.categoryGeneral") : catLabel;
-    addProduct({
-      id: crypto.randomUUID(),
-      name: form.name.trim(),
-      categorySlug: form.categorySlug,
-      categoryName,
-      quantity: qty,
-      quantityUnit: form.quantityUnit,
-      expiryDate: new Date(form.expiryDate).toISOString(),
-      marketName: marketDisplayName,
-      status: "AVAILABLE",
-      ownerKey,
-      createdAt: new Date().toISOString(),
-    });
-    setFormMsg({ type: "ok", text: t("market.formOk") });
-    setForm((f) => ({
-      ...f,
-      name: "",
-      quantity: "",
-      expiryDate: "",
-    }));
+    try {
+      await addProduct({
+        name: form.name.trim(),
+        categorySlug: form.categorySlug,
+        categoryName,
+        quantity: qty,
+        quantityUnit: form.quantityUnit,
+        expiryDate: datetimeLocalToApi(form.expiryDate),
+      });
+      setFormMsg({ type: "ok", text: t("market.formOk") });
+      setForm((f) => ({
+        ...f,
+        name: "",
+        quantity: "",
+        expiryDate: "",
+      }));
+    } catch (err) {
+      setFormMsg({ type: "err", text: err?.message || t("market.formErr") });
+    }
   };
 
   return (
@@ -146,7 +175,6 @@ function MarketDashboardInner() {
             title={t("market.title")}
             subtitle={t("market.subtitle")}
             onLogout={handleLogout}
-            onOpenChangePassword={() => setPasswordOpen(true)}
           />
         </div>
 
@@ -222,14 +250,15 @@ function MarketDashboardInner() {
           open={productsModalOpen}
           onClose={() => setProductsModalOpen(false)}
           products={myProductsSorted}
+          claims={claims}
           loading={loading}
           error={error}
           onUpdate={(productId, patch) => updateProduct(productId, patch)}
           onDelete={(productId) => deleteProduct(productId)}
         />
 
-        <section className="mt-12 grid grid-cols-1 gap-6 lg:grid-cols-12 lg:gap-6">
-          <div className="space-y-4 lg:col-span-5">
+        <section className="mt-12">
+          <div className="mx-auto max-w-xl space-y-4">
             <div>
               <p className="text-xs font-bold uppercase tracking-[0.2em] text-cyan-300/70">{t("market.addEyebrow")}</p>
               <h2 className="mt-1 text-xl font-bold tracking-tight text-white md:text-2xl">{t("market.addTitle")}</h2>
@@ -324,18 +353,6 @@ function MarketDashboardInner() {
               </button>
             </form>
           </div>
-
-          <div className="relative flex min-h-[280px] flex-col justify-between overflow-hidden rounded-[1.75rem] border border-white/10 bg-gradient-to-br from-slate-950/80 via-slate-900/50 to-cyan-950/30 p-6 ring-1 ring-white/[0.04] backdrop-blur-md lg:col-span-7 lg:min-h-0">
-            <div className="pointer-events-none absolute inset-0 opacity-[0.07] bg-[repeating-linear-gradient(90deg,transparent,transparent_11px,rgba(255,255,255,0.5)_11px,rgba(255,255,255,0.5)_12px)]" />
-            <div>
-              <p className="text-xs font-bold uppercase tracking-[0.2em] text-cyan-400/70">{t("market.myProducts")}</p>
-              <p className="mt-3 max-w-md text-sm leading-relaxed text-slate-400">{t("market.listingsSideHint")}</p>
-            </div>
-            <div className="relative mt-8 flex flex-wrap gap-2">
-              <span className="rounded-full border border-cyan-500/25 bg-cyan-500/10 px-3 py-1 text-[11px] font-semibold text-cyan-100/90">{t("market.metricOpen")}</span>
-              <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-[11px] font-semibold text-slate-300">{t("market.incoming")}</span>
-            </div>
-          </div>
         </section>
 
         <section className="mt-14 space-y-4">
@@ -346,6 +363,18 @@ function MarketDashboardInner() {
             </div>
             <p className="max-w-xl text-sm text-slate-400 md:text-right">{t("market.incomingHint")}</p>
           </div>
+
+          {inboxMsg.text ? (
+            <div
+              className={`rounded-2xl border px-4 py-3 text-sm font-medium ${
+                inboxMsg.type === "ok"
+                  ? "border-emerald-400/35 bg-emerald-500/15 text-emerald-50"
+                  : "border-red-400/35 bg-red-500/15 text-red-100"
+              }`}
+            >
+              {inboxMsg.text}
+            </div>
+          ) : null}
 
           {loading ? (
             <ProductListSection variant="dark" loading />
@@ -373,14 +402,14 @@ function MarketDashboardInner() {
                   <div className="flex flex-wrap gap-2">
                     <button
                       type="button"
-                      onClick={() => resolveClaim(c.id, "APPROVED")}
+                      onClick={() => handleResolveClaim(c.id, "APPROVED")}
                       className="rounded-xl bg-emerald-500 px-4 py-2 text-sm font-semibold text-slate-950 hover:bg-emerald-400"
                     >
                       {t("market.approve")}
                     </button>
                     <button
                       type="button"
-                      onClick={() => resolveClaim(c.id, "REJECTED")}
+                      onClick={() => handleResolveClaim(c.id, "REJECTED")}
                       className="rounded-xl border border-white/20 bg-transparent px-4 py-2 text-sm font-semibold text-slate-100 hover:bg-white/5"
                     >
                       {t("market.reject")}
@@ -392,8 +421,6 @@ function MarketDashboardInner() {
           )}
         </section>
       </div>
-
-      <ChangePasswordModal isOpen={passwordOpen} onClose={() => setPasswordOpen(false)} />
     </main>
   );
 }
