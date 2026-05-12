@@ -1,6 +1,7 @@
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth";
 import { useI18n } from "../i18n/I18nContext";
+import { LanguageSwitch } from "../components/common/LanguageSwitch";
 import Login from "./Login";
 import Register from "./Register";
 
@@ -32,6 +33,9 @@ function AuthPage({ mode = "login" }) {
       >
         {t("authPage.backHome")}
       </Link>
+      <div className="absolute right-4 top-4 z-30 md:right-6 md:top-6">
+        <LanguageSwitch variant="light" />
+      </div>
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,#d1fae5_0,#f8fafc_45%)] opacity-80" />
       <div className="absolute -top-24 -left-20 h-72 w-72 rounded-full bg-emerald-200/70 blur-3xl" />
       <div className="absolute -bottom-28 -right-20 h-80 w-80 rounded-full bg-cyan-100/70 blur-3xl" />

@@ -20,6 +20,26 @@ import { useAuth } from "../hooks/useAuth";
 import { CATEGORY_SLUG_TO_ID, CATEGORY_DB_NAME_TO_SLUG } from "../data/categories";
 import { mapProductUnitForApi, mapProductUnitFromApi, coerceId } from "../utils/surplusApi";
 
+function mapOwnerLocation(owner) {
+  if (!owner || typeof owner !== "object") {
+    return {
+      marketCity: null,
+      marketDistrict: null,
+      marketFullAddress: null,
+      marketLatitude: null,
+      marketLongitude: null,
+    };
+  }
+  const addr = owner.address && typeof owner.address === "object" ? owner.address : null;
+  return {
+    marketCity: owner.city ?? addr?.city ?? null,
+    marketDistrict: owner.district ?? addr?.district ?? null,
+    marketFullAddress: owner.fullAddress ?? addr?.fullAddress ?? addr?.full_address ?? null,
+    marketLatitude: owner.latitude ?? addr?.latitude ?? null,
+    marketLongitude: owner.longitude ?? addr?.longitude ?? null,
+  };
+}
+
 const SurplusContext = createContext(null);
 
 function requireNumericUserId(user) {
@@ -117,23 +137,32 @@ export function SurplusProvider({ children }) {
         liveClaims = await getClaimsByClaimant(ownerPathId).catch(() => []);
       }
 
-      let mappedProducts = liveProducts.map((p) => ({
-        id: coerceId(p.id) ?? p.id,
-        ownerId: coerceId(p.owner?.id) ?? p.owner?.id,
-        name: p.name,
-        categorySlug:
-          CATEGORY_DB_NAME_TO_SLUG[p.category?.name] ||
-          p.category?.name?.toLowerCase()?.replace(/\s+/g, "_") ||
-          "bakery",
-        categoryName: p.category?.name || "General",
-        quantity: p.quantity || 1,
-        quantityUnit: mapProductUnitFromApi(p.unit),
-        expiryDate: p.expiryDate || new Date().toISOString(),
-        marketName: p.owner?.organizationName || user.organizationName || "Marketim",
-        ownerKey: p.owner?.email || user.email, 
-        status: p.status || "AVAILABLE",
-        createdAt: p.createdAt || new Date().toISOString()
-      }));
+      let mappedProducts = liveProducts.map((p) => {
+        const rawMax = p.maxClaimQuantity ?? p.max_claim_quantity;
+        const maxClaimQuantity =
+          rawMax != null && String(rawMax).trim() !== "" && Number.isFinite(Number(rawMax))
+            ? Number(rawMax)
+            : null;
+        return {
+          id: coerceId(p.id) ?? p.id,
+          ownerId: coerceId(p.owner?.id) ?? p.owner?.id,
+          name: p.name,
+          categorySlug:
+            CATEGORY_DB_NAME_TO_SLUG[p.category?.name] ||
+            p.category?.name?.toLowerCase()?.replace(/\s+/g, "_") ||
+            "bakery",
+          categoryName: p.category?.name || "General",
+          quantity: p.quantity || 1,
+          quantityUnit: mapProductUnitFromApi(p.unit),
+          expiryDate: p.expiryDate || new Date().toISOString(),
+          marketName: p.owner?.organizationName || user.organizationName || "Marketim",
+          ownerKey: p.owner?.email || user.email,
+          status: p.status || "AVAILABLE",
+          createdAt: p.createdAt || new Date().toISOString(),
+          maxClaimQuantity,
+          ...mapOwnerLocation(p.owner),
+        };
+      });
 
       if (role === "MARKET") {
         mappedProducts.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
@@ -168,6 +197,10 @@ export function SurplusProvider({ children }) {
           ownerId,
           unit: mapProductUnitForApi(productData.quantityUnit),
         };
+        const mc = productData.maxClaimQuantity;
+        if (mc !== "" && mc != null && Number.isFinite(Number(mc)) && Number(mc) > 0) {
+          reqDto.maxClaimQuantity = Number(mc);
+        }
         await createProduct(reqDto);
         await fetchAllData();
       },

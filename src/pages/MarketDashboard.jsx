@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import MarketMyProductsModal from "../components/dashboard/MarketMyProductsModal";
+import { MarketGreenScorePanel } from "../components/dashboard/MarketGreenScorePanel";
 import Topbar from "../components/dashboard/Topbar";
 import RoleGuard from "../components/common/RoleGuard";
 import { ProductListSection } from "../components/surplus/ProductListSection";
@@ -9,8 +10,7 @@ import { useSurplus } from "../context/SurplusContext";
 import { useAuth } from "../hooks/useAuth";
 import { useI18n } from "../i18n/I18nContext";
 import { datetimeLocalToApi, coerceId } from "../utils/surplusApi";
-
-const UNIT_VALUES = ["kg", "crates", "boxes", "portions", "units"];
+import { PRODUCT_UNIT_VALUES } from "../constants/productUnits";
 
 function StoreMark({ className = "" }) {
   return (
@@ -37,6 +37,7 @@ function MarketDashboardInner() {
   const [form, setForm] = useState({
     name: "",
     quantity: "",
+    maxClaimQuantity: "",
     quantityUnit: "kg",
     expiryDate: "",
     categorySlug: FOOD_CATEGORY_SLUGS[0] || "bakery",
@@ -126,8 +127,17 @@ function MarketDashboardInner() {
     const selectedDate = new Date(form.expiryDate);
     const now = new Date();
     if (selectedDate <= now) {
-      setFormMsg({ type: "err", text: "Error: You cannot add products with a past expiry date or with the current time!" });
+      setFormMsg({ type: "err", text: t("market.errExpiryPast") });
       return;
+    }
+
+    const maxRaw = String(form.maxClaimQuantity ?? "").trim();
+    if (maxRaw !== "") {
+      const maxClaim = Number(maxRaw);
+      if (!Number.isInteger(maxClaim) || maxClaim < 1 || maxClaim > qty) {
+        setFormMsg({ type: "err", text: t("market.formErrMaxClaim") });
+        return;
+      }
     }
 
     const catLabel = t(`categories.${form.categorySlug}`);
@@ -140,12 +150,14 @@ function MarketDashboardInner() {
         quantity: qty,
         quantityUnit: form.quantityUnit,
         expiryDate: datetimeLocalToApi(form.expiryDate),
+        maxClaimQuantity: String(form.maxClaimQuantity ?? "").trim() === "" ? null : Number(form.maxClaimQuantity),
       });
       setFormMsg({ type: "ok", text: t("market.formOk") });
       setForm((f) => ({
         ...f,
         name: "",
         quantity: "",
+        maxClaimQuantity: "",
         expiryDate: "",
       }));
     } catch (err) {
@@ -178,6 +190,15 @@ function MarketDashboardInner() {
           />
         </div>
 
+        {error && !loading ? (
+          <div
+            className="mt-6 rounded-2xl border border-amber-400/35 bg-amber-500/10 px-4 py-3 text-sm font-medium text-amber-50 backdrop-blur-sm"
+            role="alert"
+          >
+            {t("market.dashboardLoadErr")}
+          </div>
+        ) : null}
+
         <div className="mt-10 grid gap-5 lg:grid-cols-12 lg:gap-6">
           <section className="relative overflow-hidden rounded-[2rem] border border-white/10 bg-gradient-to-br from-slate-950/95 via-cyan-950/75 to-[#061c24] p-8 shadow-2xl shadow-black/40 ring-1 ring-white/5 lg:col-span-7 md:p-10">
             <div className="pointer-events-none absolute -right-12 top-0 h-52 w-52 rounded-full bg-cyan-400/18 blur-3xl" />
@@ -192,7 +213,7 @@ function MarketDashboardInner() {
               <h2 className="mt-5 max-w-lg text-3xl font-bold leading-[1.12] tracking-tight text-white md:text-4xl">{t("market.heroTitle")}</h2>
               <p className="mt-4 max-w-xl text-sm leading-relaxed text-cyan-100/70 md:text-base">{t("market.heroBody")}</p>
 
-              <div className="mt-8 flex flex-wrap gap-3">
+              <div className="mt-8 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
                 <div className="rounded-2xl border border-white/10 bg-black/25 px-5 py-4 backdrop-blur-sm">
                   <p className="text-3xl font-bold tabular-nums text-white">{metrics.liveListings}</p>
                   <p className="mt-1 text-xs font-medium text-cyan-100/75">{t("market.statListingsCaption")}</p>
@@ -205,6 +226,7 @@ function MarketDashboardInner() {
                   <p className="text-3xl font-bold tabular-nums text-amber-50">{metrics.inbox}</p>
                   <p className="mt-1 text-xs font-medium text-amber-100/80">{t("market.statInboxCaption")}</p>
                 </div>
+                <MarketGreenScorePanel claims={claims} myProducts={myProducts} t={t} />
               </div>
             </div>
           </section>
@@ -337,13 +359,27 @@ function MarketDashboardInner() {
                     onChange={(e) => setForm((f) => ({ ...f, quantityUnit: e.target.value }))}
                     className="mt-1.5 w-full rounded-xl border border-white/10 bg-slate-950/80 px-3 py-2.5 text-sm text-white outline-none focus:border-cyan-400/50"
                   >
-                    {UNIT_VALUES.map((u) => (
+                    {PRODUCT_UNIT_VALUES.map((u) => (
                       <option key={u} value={u}>
                         {t(`units.${u}`)}
                       </option>
                     ))}
                   </select>
                 </div>
+              </div>
+              <div>
+                <label className="block text-xs font-semibold uppercase tracking-wide text-slate-400">
+                  {t("market.formMaxClaim")}
+                </label>
+                <input
+                  type="number"
+                  min={1}
+                  value={form.maxClaimQuantity}
+                  onChange={(e) => setForm((f) => ({ ...f, maxClaimQuantity: e.target.value }))}
+                  className="mt-1.5 w-full rounded-xl border border-white/10 bg-slate-950/80 px-3 py-2.5 text-sm text-white outline-none focus:border-cyan-400/50"
+                  placeholder={t("market.formMaxClaimPh")}
+                />
+                <p className="mt-1.5 text-[11px] leading-relaxed text-slate-500">{t("market.formMaxClaimHint")}</p>
               </div>
               <button
                 type="submit"

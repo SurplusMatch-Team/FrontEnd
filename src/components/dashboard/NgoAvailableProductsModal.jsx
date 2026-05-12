@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import { useI18n } from "../../i18n/I18nContext";
+import { categoryLabelFromProduct } from "../../utils/categoryDisplay";
 import { ProductCard } from "../surplus/ProductCard";
 import { ProductListSection } from "../surplus/ProductListSection";
 
@@ -25,13 +26,20 @@ function NgoAvailableProductsModal({
   };
 
   const tags = useMemo(() => {
-    const names = products.map((p) => p.categoryName).filter(Boolean);
-    return [...new Set(names)].sort((a, b) => a.localeCompare(b));
-  }, [products]);
+    const slugs = products.map((p) => p.categorySlug).filter(Boolean);
+    const unique = [...new Set(slugs)];
+    return unique.sort((a, b) =>
+      categoryLabelFromProduct(t, { categorySlug: a }).localeCompare(
+        categoryLabelFromProduct(t, { categorySlug: b }),
+        undefined,
+        { sensitivity: "base" },
+      ),
+    );
+  }, [products, t]);
 
   const filtered = useMemo(() => {
     if (tagFilter === ALL) return products;
-    return products.filter((p) => p.categoryName === tagFilter);
+    return products.filter((p) => p.categorySlug === tagFilter);
   }, [products, tagFilter]);
 
   if (!open) return null;
@@ -82,18 +90,21 @@ function NgoAvailableProductsModal({
             >
               {t("ngo.filterAll")}
             </button>
-            {tags.map((tag) => (
+            {tags.map((slug) => (
               <button
-                key={tag}
+                key={slug}
                 type="button"
-                onClick={() => setTagFilter(tag)}
+                onClick={() => setTagFilter(slug)}
                 className={`rounded-full px-3 py-1.5 text-xs font-semibold transition sm:text-sm ${
-                  tagFilter === tag
+                  tagFilter === slug
                     ? "bg-teal-500 text-white shadow-md ring-2 ring-teal-300/50"
                     : "border border-white/15 bg-white/5 text-slate-200 hover:border-teal-400/40 hover:bg-teal-500/15"
                 }`}
               >
-                {tag}
+                {categoryLabelFromProduct(t, {
+                  categorySlug: slug,
+                  categoryName: products.find((p) => p.categorySlug === slug)?.categoryName,
+                })}
               </button>
             ))}
           </div>
@@ -127,6 +138,17 @@ function NgoAvailableProductsModal({
                             <label className="text-[11px] font-bold uppercase tracking-wide text-slate-500">
                               {t("ngo.reqQty")}
                             </label>
+                            {p.maxClaimQuantity != null && Number.isFinite(Number(p.maxClaimQuantity)) ? (
+                              <p className="mt-0.5 text-[11px] font-medium text-emerald-800">
+                                {t("productCard.maxClaimPerNgo", {
+                                  max: p.maxClaimQuantity,
+                                  unit:
+                                    t(`units.${p.quantityUnit || "units"}`) === `units.${p.quantityUnit || "units"}`
+                                      ? p.quantityUnit || "units"
+                                      : t(`units.${p.quantityUnit || "units"}`),
+                                })}
+                              </p>
+                            ) : null}
                             <input
                               type="number"
                               min={1}

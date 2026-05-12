@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { LanguageSwitch } from "../common/LanguageSwitch";
 import { useI18n } from "../../i18n/I18nContext";
 
 function Topbar({
@@ -76,6 +77,7 @@ function Topbar({
       </div>
 
       <div className="flex shrink-0 flex-col items-end gap-2 self-end md:self-auto md:flex-row md:items-center">
+        <LanguageSwitch variant={variant} />
         <div className="relative">
           <button
             type="button"

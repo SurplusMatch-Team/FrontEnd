@@ -1,6 +1,9 @@
 /* eslint-disable react-refresh/only-export-components -- provider + hooks share one module */
-import { createContext, useCallback, useContext, useEffect, useMemo } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { en } from "./locales/en";
+import { tr } from "./locales/tr";
+
+const LOCALE_STORAGE_KEY = "replate-locale";
 
 function get(obj, path) {
   const parts = path.split(".");
@@ -23,20 +26,51 @@ function interpolate(str, vars) {
 
 const I18nContext = createContext(null);
 
+function readStoredLocale() {
+  try {
+    const s = localStorage.getItem(LOCALE_STORAGE_KEY);
+    if (s === "tr" || s === "en") return s;
+  } catch {
+    /* ignore */
+  }
+  return "en";
+}
+
 export function I18nProvider({ children }) {
-  const t = useCallback((path, vars) => {
-    const raw = get(en, path);
-    if (raw == null) return path;
-    if (typeof raw === "string") return interpolate(raw, vars);
-    return path;
+  const [locale, setLocaleState] = useState(readStoredLocale);
+
+  const messages = locale === "tr" ? tr : en;
+
+  const setLocale = useCallback((next) => {
+    const v = next === "tr" ? "tr" : "en";
+    setLocaleState(v);
+    try {
+      localStorage.setItem(LOCALE_STORAGE_KEY, v);
+    } catch {
+      /* ignore */
+    }
   }, []);
+
+  const t = useCallback(
+    (path, vars) => {
+      let raw = get(messages, path);
+      if (raw == null && locale === "tr") {
+        raw = get(en, path);
+      }
+      if (raw == null) return path;
+      if (typeof raw === "string") return interpolate(raw, vars);
+      return path;
+    },
+    [locale, messages],
+  );
 
   useEffect(() => {
-    document.title = get(en, "meta.title") || "Replate";
-    document.documentElement.lang = "en";
-  }, []);
+    document.documentElement.lang = locale === "tr" ? "tr" : "en";
+    const title = get(messages, "meta.title") ?? get(en, "meta.title");
+    if (title) document.title = title;
+  }, [locale, messages]);
 
-  const value = useMemo(() => ({ t }), [t]);
+  const value = useMemo(() => ({ t, locale, setLocale }), [t, locale, setLocale]);
 
   return <I18nContext.Provider value={value}>{children}</I18nContext.Provider>;
 }
@@ -47,7 +81,9 @@ export function useI18n() {
   return ctx;
 }
 
-/** English message tree for array sections (e.g. landing value cards). */
+/** Full message tree for the active locale (e.g. landing value cards). */
 export function useLocaleMessages() {
-  return en;
+  const ctx = useContext(I18nContext);
+  if (!ctx) return en;
+  return ctx.locale === "tr" ? tr : en;
 }
