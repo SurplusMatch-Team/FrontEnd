@@ -160,14 +160,29 @@ export function SurplusProvider({ children }) {
   const actions = useMemo(() => ({
     addProduct: async (productData) => {
         const ownerId = requireNumericUserId(user);
+
+        // 🛡️ GigaChad Tarih Formatlayıcı (Gümrükten net geçer)
+        let formattedDate = productData.expiryDate;
+        if (formattedDate) {
+          if (formattedDate.includes('Z')) formattedDate = formattedDate.split('.')[0].replace('Z', '');
+          if (!formattedDate.includes('T')) formattedDate += "T00:00:00";
+        }
+
         const reqDto = {
           name: productData.name,
           categoryId: CATEGORY_SLUG_TO_ID[productData.categorySlug] ?? 1,
           quantity: Number(productData.quantity),
-          expiryDate: productData.expiryDate,
+          expiryDate: formattedDate,
           ownerId,
           unit: mapProductUnitForApi(productData.quantityUnit),
         };
+
+        // 🛡️ SPRINT HEDEFİ 1: Talep Limiti (Max Claim Quantity)
+        if (productData.maxClaimQuantity) {
+          reqDto.maxClaimQuantity = Number(productData.maxClaimQuantity);
+        }
+
+        console.log("🚀 Backend'e Uçan Paket (Add):", reqDto);
         await createProduct(reqDto);
         await fetchAllData();
       },
@@ -175,13 +190,28 @@ export function SurplusProvider({ children }) {
       updateProduct: async (productId, patchData) => {
         const body = { ownerId: requireNumericUserId(user) };
         if (patchData.name != null) body.name = patchData.name;
-        if (patchData.quantity != null) body.quantity = patchData.quantity;
-        if (patchData.expiryDate != null) body.expiryDate = patchData.expiryDate;
+        if (patchData.quantity != null) body.quantity = Number(patchData.quantity);
+        
+        // 🛡️ Update ederken de tarih bozulmasın diye aynı zırhı giydiriyoruz
+        if (patchData.expiryDate != null) {
+          let fDate = patchData.expiryDate;
+          if (fDate.includes('Z')) fDate = fDate.split('.')[0].replace('Z', '');
+          if (!fDate.includes('T')) fDate += "T00:00:00";
+          body.expiryDate = fDate;
+        }
+
         if (patchData.categorySlug != null) {
           const cid = CATEGORY_SLUG_TO_ID[patchData.categorySlug];
           if (cid != null) body.categoryId = cid;
         }
         if (patchData.quantityUnit) body.unit = mapProductUnitForApi(patchData.quantityUnit);
+        
+        // 🛡️ SPRINT HEDEFİ 1: Edit yaparken limiti değiştirebilme
+        if (patchData.maxClaimQuantity != null) {
+          body.maxClaimQuantity = Number(patchData.maxClaimQuantity);
+        }
+
+        console.log("🛠️ Backend'e Uçan Paket (Edit):", body);
         await apiUpdateProduct(Number(productId), body);
         await fetchAllData();
       },
