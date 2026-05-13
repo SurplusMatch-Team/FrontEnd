@@ -1,12 +1,19 @@
-export function formatExpiryDate(iso) {
+export function formatExpiryDate(iso, locale = "en") {
   if (!iso) return "—";
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return "—";
-  return d.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
+  const loc = locale === "tr" ? "tr-TR" : "en-GB";
+  return d.toLocaleDateString(loc, { day: "numeric", month: "short", year: "numeric" });
 }
 
-export function formatQuantity(product) {
+/** Pass `t` from `useI18n()` for translated unit labels. */
+export function formatQuantity(product, t) {
   const u = product.quantityUnit || "units";
+  if (typeof t === "function") {
+    const key = `units.${u}`;
+    const lbl = t(key);
+    return `${product.quantity} ${lbl !== key ? lbl : u}`;
+  }
   return `${product.quantity} ${u}`;
 }
 

@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth";
 import { useI18n, useLocaleMessages } from "../i18n/I18nContext";
+import { LanguageSwitch } from "../components/common/LanguageSwitch";
 
 function Reveal({ children, className = "" }) {
   const ref = useRef(null);
@@ -85,6 +86,7 @@ function LandingPage() {
             <span className="truncate text-lg font-bold tracking-tight text-slate-900">{t("common.brand")}</span>
           </Link>
           <div className="flex shrink-0 items-center gap-2 sm:gap-3">
+            <LanguageSwitch variant="light" />
             {isAuthenticated ? (
               <Link
                 to="/dashboard"

@@ -36,7 +36,7 @@ function claimRailClass(status) {
 function NgoDashboardInner() {
   const navigate = useNavigate();
   const { user, logout } = useAuth();
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const { catalogStatus, products, claims, addClaim, withdrawClaim } = useSurplus();
   const [availableModalOpen, setAvailableModalOpen] = useState(false);
   const [qtyByProduct, setQtyByProduct] = useState({});
@@ -93,6 +93,14 @@ function NgoDashboardInner() {
     const requested = Number(raw);
     if (Number.isNaN(requested) || requested <= 0) {
       setBanner({ type: "err", text: t("ngo.errQty") });
+      return;
+    }
+    const cap = product.maxClaimQuantity;
+    if (cap != null && Number.isFinite(Number(cap)) && requested > Number(cap)) {
+      setBanner({
+        type: "err",
+        text: t("ngo.errExceedMaxClaim", { max: cap, unit: unitLabel(product.quantityUnit) }),
+      });
       return;
     }
     if (requested > product.quantity) {
@@ -171,6 +179,15 @@ function NgoDashboardInner() {
             onLogout={handleLogout}
           />
         </div>
+
+        {error && !loading ? (
+          <div
+            className="mt-6 rounded-2xl border border-amber-400/35 bg-amber-500/10 px-4 py-3 text-sm font-medium text-amber-50 backdrop-blur-sm"
+            role="alert"
+          >
+            {t("ngo.dashboardLoadErr")}
+          </div>
+        ) : null}
 
         {banner.text ? (
           <div
@@ -303,7 +320,7 @@ function NgoDashboardInner() {
                         <p className="mt-2 text-sm text-slate-400">
                           <span className="font-medium text-emerald-100/90">{c.marketName}</span>
                           <span className="text-slate-600"> · </span>
-                          {t("ngo.useBy")} <span className="text-slate-300">{formatExpiryDate(c.expiryDate)}</span>
+                          {t("ngo.useBy")} <span className="text-slate-300">{formatExpiryDate(c.expiryDate, locale)}</span>
                         </p>
 
                         <p className="mt-3 text-sm text-slate-300">
@@ -384,7 +401,7 @@ function NgoDashboardInner() {
                               <p className="mt-2 text-sm text-slate-500">
                                 <span className="font-medium text-emerald-200/70">{c.marketName}</span>
                                 <span className="text-slate-600"> · </span>
-                                {t("ngo.useBy")} <span className="text-slate-400">{formatExpiryDate(c.expiryDate)}</span>
+                                {t("ngo.useBy")} <span className="text-slate-400">{formatExpiryDate(c.expiryDate, locale)}</span>
                               </p>
                               <p className="mt-3 text-sm text-slate-500">
                                 {t("ngo.askedFor")}{" "}

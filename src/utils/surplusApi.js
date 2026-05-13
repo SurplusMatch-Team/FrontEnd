@@ -12,7 +12,14 @@ export function datetimeLocalToApi(localValue) {
 /** UI unit select → backend `ProductUnit` JSON (see backend `ProductUnit.fromJson`). */
 export function mapProductUnitForApi(quantityUnit) {
   const u = String(quantityUnit || "").toLowerCase();
-  const map = { kg: "KG", crates: "CRATE", boxes: "BOX", portions: "PORTION", units: "UNIT" };
+  const map = {
+    kg: "KG",
+    liter: "LITER",
+    crates: "CRATE",
+    boxes: "BOX",
+    portions: "PORTION",
+    units: "UNIT",
+  };
   return map[u] || "UNIT";
 }
 
@@ -22,6 +29,7 @@ export function mapProductUnitFromApi(unit) {
   const n = String(unit).trim().toUpperCase();
   const map = {
     KG: "kg",
+    LITER: "liter",
     CRATE: "crates",
     CRATES: "crates",
     BOX: "boxes",
@@ -33,7 +41,7 @@ export function mapProductUnitFromApi(unit) {
   };
   if (map[n]) return map[n];
   const lower = String(unit).trim().toLowerCase();
-  if (["kg", "crates", "boxes", "portions", "units"].includes(lower)) return lower;
+  if (["kg", "liter", "crates", "boxes", "portions", "units"].includes(lower)) return lower;
   return "kg";
 }
 

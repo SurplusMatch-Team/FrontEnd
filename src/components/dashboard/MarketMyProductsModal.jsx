@@ -1,11 +1,11 @@
 import { useMemo, useState } from "react";
 import { FOOD_CATEGORY_SLUGS, CATEGORY_DB_NAME_TO_SLUG } from "../../data/categories";
 import { datetimeLocalToApi } from "../../utils/surplusApi";
+import { PRODUCT_UNIT_VALUES } from "../../constants/productUnits";
 import { useI18n } from "../../i18n/I18nContext";
+import { categoryLabelFromProduct } from "../../utils/categoryDisplay";
 import { formatExpiryDate, formatQuantity, sumPendingRequestedForProduct } from "../../utils/surplusDisplay";
 import { ProductListSection } from "../surplus/ProductListSection";
-
-const UNIT_VALUES = ["kg", "crates", "boxes", "portions", "units"];
 
 function isoToDatetimeLocal(iso) {
   const d = new Date(iso);
@@ -54,7 +54,7 @@ function MarketMyProductsModal({
   onUpdate,
   onDelete,
 }) {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const [editingId, setEditingId] = useState(null);
   const [editForm, setEditForm] = useState(null);
   const [toast, setToast] = useState({ type: "", text: "" });
@@ -99,7 +99,7 @@ function MarketMyProductsModal({
     const selectedDate = new Date(editForm.expiryDate);
     const now = new Date();
     if (selectedDate <= now) {
-      setToast({ type: "err", text: "Hata: Ürün tarihi geçmiş bir zamana güncellenemez!" });
+      setToast({ type: "err", text: t("market.editErrExpiryPast") });
       return;
     }
 
@@ -248,7 +248,7 @@ function MarketMyProductsModal({
                           onChange={(e) => setEditForm((f) => ({ ...f, quantityUnit: e.target.value }))}
                           className="rounded-lg border border-white/15 bg-slate-900 px-2 py-2 text-sm text-white"
                         >
-                          {UNIT_VALUES.map((u) => (
+                          {PRODUCT_UNIT_VALUES.map((u) => (
                             <option key={u} value={u}>
                               {t(`units.${u}`)}
                             </option>
@@ -277,10 +277,10 @@ function MarketMyProductsModal({
                       <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                         <div className="min-w-0">
                           <p className="font-semibold text-white">{p.name}</p>
-                          <p className="text-xs text-cyan-300/90">{p.categoryName}</p>
+                          <p className="text-xs text-cyan-300/90">{categoryLabelFromProduct(t, p)}</p>
                           <p className="mt-1 text-xs text-slate-400">
-                            {formatQuantity(p)} · {t("productCard.useBy")}{" "}
-                            {formatExpiryDate(p.expiryDate)}
+                            {formatQuantity(p, t)} · {t("productCard.useBy")}{" "}
+                            {formatExpiryDate(p.expiryDate, locale)}
                           </p>
                           {pendingReserved > 0 ? (
                             <p className="mt-1.5 text-[11px] leading-snug text-amber-200/85">
