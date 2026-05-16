@@ -30,15 +30,12 @@ export const getClaimsByClaimant = async (claimantId) => {
   }
 };
 
-export const getClaimsByProduct = async (productId) => {
+export const getClaimsByOwner = async (ownerId) => {
   try {
-    const res = await API.get(`/claims/product/${productId}`, {
-      params: { _: Date.now() },
-      headers: noStoreHeaders,
-    });
-    return asApiArray(res.data);
+    const res = await API.get(`/claims/owner/${ownerId}`);
+    return res.data;
   } catch (error) {
-    throw new Error(extractMessage(error, "Failed to fetch product claims"));
+    throw new Error(error?.response?.data || "Talepler getirilemedi");
   }
 };
 
