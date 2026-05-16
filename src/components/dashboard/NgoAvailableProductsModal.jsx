@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useI18n } from "../../i18n/I18nContext";
 import { categoryLabelFromProduct } from "../../utils/categoryDisplay";
 import { ProductCard } from "../surplus/ProductCard";
@@ -16,6 +16,8 @@ function NgoAvailableProductsModal({
   onQtyChange,
   onClaim,
   claimBusy = false,
+  claimAlert = { type: "", text: "", productId: null },
+  onDismissClaimAlert,
 }) {
   const { t } = useI18n();
   const [tagFilter, setTagFilter] = useState(ALL);
@@ -41,6 +43,13 @@ function NgoAvailableProductsModal({
     if (tagFilter === ALL) return products;
     return products.filter((p) => p.categorySlug === tagFilter);
   }, [products, tagFilter]);
+
+  useEffect(() => {
+    if (!claimAlert.text || !onDismissClaimAlert) return undefined;
+    const ms = claimAlert.type === "ok" ? 4000 : 6500;
+    const id = window.setTimeout(onDismissClaimAlert, ms);
+    return () => window.clearTimeout(id);
+  }, [claimAlert.text, claimAlert.type, onDismissClaimAlert]);
 
   if (!open) return null;
 
@@ -110,7 +119,43 @@ function NgoAvailableProductsModal({
           </div>
         </div>
 
-        <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4 sm:px-5 sm:py-5">
+        {claimAlert.text ? (
+          <div
+            className="pointer-events-none absolute inset-x-0 bottom-4 z-30 flex justify-center px-4 sm:bottom-5"
+            aria-live="polite"
+          >
+            <div
+              role="alert"
+              className={`pointer-events-auto flex max-w-[min(100%,22rem)] items-start gap-2.5 rounded-2xl border px-4 py-3 text-sm font-medium shadow-[0_12px_40px_-8px_rgba(0,0,0,0.55)] backdrop-blur-md ${
+                claimAlert.type === "ok"
+                  ? "border-emerald-400/45 bg-emerald-950/95 text-emerald-50"
+                  : "border-red-400/50 bg-red-950/95 text-red-50"
+              }`}
+            >
+              <span
+                className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-xs font-bold ${
+                  claimAlert.type === "ok" ? "bg-emerald-500/30 text-emerald-100" : "bg-red-500/35 text-red-100"
+                }`}
+                aria-hidden
+              >
+                {claimAlert.type === "ok" ? "✓" : "!"}
+              </span>
+              <span className="min-w-0 flex-1 leading-snug">{claimAlert.text}</span>
+              {onDismissClaimAlert ? (
+                <button
+                  type="button"
+                  onClick={onDismissClaimAlert}
+                  className="shrink-0 rounded-lg px-1.5 py-0.5 text-base leading-none text-white/70 hover:bg-white/10 hover:text-white"
+                  aria-label={t("market.modalClose")}
+                >
+                  ×
+                </button>
+              ) : null}
+            </div>
+          </div>
+        ) : null}
+
+        <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4 pb-20 sm:px-5 sm:py-5 sm:pb-24">
           {loading ? (
             <ProductListSection variant="dark" loading />
           ) : error ? (
@@ -126,56 +171,74 @@ function NgoAvailableProductsModal({
               <p className="mb-3 rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2 text-[11px] leading-relaxed text-slate-400">
                 {t("ngo.browseQuantityNote")}
               </p>
-            <ul className="space-y-4">
-              {filtered.map((p) => (
-                <li key={p.id} className="rounded-2xl ring-1 ring-white/5">
-                  <ProductCard
-                    product={p}
-                    footer={
-                      p.status === "AVAILABLE" ? (
-                        <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
-                          <div className="flex-1">
-                            <label className="text-[11px] font-bold uppercase tracking-wide text-slate-500">
-                              {t("ngo.reqQty")}
-                            </label>
-                            {p.maxClaimQuantity != null && Number.isFinite(Number(p.maxClaimQuantity)) ? (
-                              <p className="mt-0.5 text-[11px] font-medium text-emerald-800">
-                                {t("productCard.maxClaimPerNgo", {
-                                  max: p.maxClaimQuantity,
-                                  unit:
-                                    t(`units.${p.quantityUnit || "units"}`) === `units.${p.quantityUnit || "units"}`
-                                      ? p.quantityUnit || "units"
-                                      : t(`units.${p.quantityUnit || "units"}`),
-                                })}
-                              </p>
-                            ) : null}
-                            <input
-                              type="number"
-                              min={1}
-                              disabled={claimBusy}
-                              value={qtyByProduct[p.id] ?? ""}
-                              onChange={(e) => onQtyChange(p.id, e.target.value)}
-                              className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-900 outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100 disabled:cursor-not-allowed disabled:opacity-60"
-                              placeholder={`${p.quantity}`}
-                            />
-                          </div>
-                          <button
-                            type="button"
-                            disabled={claimBusy}
-                            onClick={() => void onClaim(p)}
-                            className="shrink-0 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 px-4 py-2.5 text-sm font-bold text-white shadow-md transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60"
-                          >
-                            {t("ngo.claim")}
-                          </button>
-                        </div>
-                      ) : (
-                        <p className="text-sm text-amber-900/90">{t("ngo.claimBlocked")}</p>
-                      )
-                    }
-                  />
-                </li>
-              ))}
-            </ul>
+              <ul className="space-y-4">
+                {filtered.map((p) => {
+                  const isAlertTarget =
+                    claimAlert.text && claimAlert.productId != null && Number(claimAlert.productId) === Number(p.id);
+                  return (
+                    <li
+                      key={p.id}
+                      className={`rounded-2xl ring-1 transition ${
+                        isAlertTarget && claimAlert.type === "err"
+                          ? "ring-2 ring-red-400/60 ring-offset-2 ring-offset-[#041910]"
+                          : isAlertTarget && claimAlert.type === "ok"
+                            ? "ring-2 ring-emerald-400/50 ring-offset-2 ring-offset-[#041910]"
+                            : "ring-white/5"
+                      }`}
+                    >
+                      <ProductCard
+                        product={p}
+                        footer={
+                          p.status === "AVAILABLE" ? (
+                            <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
+                              <div className="flex-1">
+                                <label className="text-[11px] font-bold uppercase tracking-wide text-slate-500">
+                                  {t("ngo.reqQty")}
+                                </label>
+                                {p.maxClaimQuantity != null && Number.isFinite(Number(p.maxClaimQuantity)) ? (
+                                  <p className="mt-0.5 text-[11px] font-medium text-emerald-800">
+                                    {t("productCard.maxClaimPerNgo", {
+                                      max: p.maxClaimQuantity,
+                                      unit:
+                                        t(`units.${p.quantityUnit || "units"}`) ===
+                                        `units.${p.quantityUnit || "units"}`
+                                          ? p.quantityUnit || "units"
+                                          : t(`units.${p.quantityUnit || "units"}`),
+                                    })}
+                                  </p>
+                                ) : null}
+                                <input
+                                  type="number"
+                                  min={1}
+                                  disabled={claimBusy}
+                                  value={qtyByProduct[p.id] ?? ""}
+                                  onChange={(e) => onQtyChange(p.id, e.target.value)}
+                                  className={`mt-1 w-full rounded-xl border bg-slate-50 px-3 py-2 text-sm text-slate-900 outline-none focus:ring-2 disabled:cursor-not-allowed disabled:opacity-60 ${
+                                    isAlertTarget && claimAlert.type === "err"
+                                      ? "border-red-400 focus:border-red-400 focus:ring-red-100"
+                                      : "border-slate-200 focus:border-emerald-400 focus:ring-emerald-100"
+                                  }`}
+                                  placeholder={`${p.quantity}`}
+                                />
+                              </div>
+                              <button
+                                type="button"
+                                disabled={claimBusy}
+                                onClick={() => void onClaim(p)}
+                                className="shrink-0 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 px-4 py-2.5 text-sm font-bold text-white shadow-md transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60"
+                              >
+                                {t("ngo.claim")}
+                              </button>
+                            </div>
+                          ) : (
+                            <p className="text-sm text-amber-900/90">{t("ngo.claimBlocked")}</p>
+                          )
+                        }
+                      />
+                    </li>
+                  );
+                })}
+              </ul>
             </>
           )}
         </div>
