@@ -41,6 +41,7 @@ function NgoDashboardInner() {
   const [availableModalOpen, setAvailableModalOpen] = useState(false);
   const [qtyByProduct, setQtyByProduct] = useState({});
   const [banner, setBanner] = useState({ type: "", text: "" });
+  const [claimAlert, setClaimAlert] = useState({ type: "", text: "", productId: null });
   const [withdrawTarget, setWithdrawTarget] = useState(null);
   const [claimBusy, setClaimBusy] = useState(false);
 
@@ -83,58 +84,73 @@ function NgoDashboardInner() {
     return lbl === key ? u || "units" : lbl;
   };
 
+  const showClaimFeedback = (type, text, productId = null) => {
+    if (availableModalOpen) {
+      setClaimAlert({ type, text, productId });
+      setBanner({ type: "", text: "" });
+    } else {
+      setBanner({ type, text });
+      setClaimAlert({ type: "", text: "", productId: null });
+    }
+  };
+
   const handleClaim = async (product) => {
+    setClaimAlert({ type: "", text: "", productId: null });
     setBanner({ type: "", text: "" });
     if (!Number.isFinite(ngoUserId)) {
-      setBanner({ type: "err", text: t("login.errUser") });
+      showClaimFeedback("err", t("login.errUser"), product.id);
       return;
     }
     const raw = qtyByProduct[product.id] ?? "";
     const requested = Number(raw);
     if (Number.isNaN(requested) || requested <= 0) {
-      setBanner({ type: "err", text: t("ngo.errQty") });
+      showClaimFeedback("err", t("ngo.errQty"), product.id);
       return;
     }
     const cap = product.maxClaimQuantity;
     if (cap != null && Number.isFinite(Number(cap)) && requested > Number(cap)) {
-      setBanner({
-        type: "err",
-        text: t("ngo.errExceedMaxClaim", { max: cap, unit: unitLabel(product.quantityUnit) }),
-      });
+      showClaimFeedback(
+        "err",
+        t("ngo.errExceedMaxClaim", { max: cap, unit: unitLabel(product.quantityUnit) }),
+        product.id,
+      );
       return;
     }
     if (requested > product.quantity) {
-      setBanner({
-        type: "err",
-        text: t("ngo.errExceed", { max: product.quantity, unit: unitLabel(product.quantityUnit) }),
-      });
+      showClaimFeedback(
+        "err",
+        t("ngo.errExceed", { max: product.quantity, unit: unitLabel(product.quantityUnit) }),
+        product.id,
+      );
       return;
     }
     const pendingCount = myClaims.filter((c) => c.status === "PENDING").length;
     if (pendingCount >= MAX_PENDING_CLAIMS_PER_NGO) {
-      setBanner({
-        type: "err",
-        text: t("ngo.errMaxPending", { max: MAX_PENDING_CLAIMS_PER_NGO }),
-      });
+      showClaimFeedback("err", t("ngo.errMaxPending", { max: MAX_PENDING_CLAIMS_PER_NGO }), product.id);
       return;
     }
     const duplicatePending = myClaims.some(
       (c) => c.status === "PENDING" && Number(c.productId) === Number(product.id),
     );
     if (duplicatePending) {
-      setBanner({ type: "err", text: t("ngo.errDuplicateProduct") });
+      showClaimFeedback("err", t("ngo.errDuplicateProduct"), product.id);
       return;
     }
     setClaimBusy(true);
     try {
       await addClaim({ requestedQuantity: requested }, product.id);
       setQty(product.id, "");
-      setBanner({ type: "ok", text: t("ngo.okClaim") });
+      showClaimFeedback("ok", t("ngo.okClaim"), product.id);
     } catch (err) {
-      setBanner({ type: "err", text: err?.message || t("ngo.claimSubmitErr") });
+      showClaimFeedback("err", err?.message || t("ngo.claimSubmitErr"), product.id);
     } finally {
       setClaimBusy(false);
     }
+  };
+
+  const closeBrowseModal = () => {
+    setAvailableModalOpen(false);
+    setClaimAlert({ type: "", text: "", productId: null });
   };
 
   const claimStatusLabel = (s) => {
@@ -268,14 +284,21 @@ function NgoDashboardInner() {
 
         <NgoAvailableProductsModal
           open={availableModalOpen}
-          onClose={() => setAvailableModalOpen(false)}
+          onClose={closeBrowseModal}
           products={browseProductsSorted}
           loading={loading}
           error={error}
           qtyByProduct={qtyByProduct}
-          onQtyChange={setQty}
+          onQtyChange={(productId, value) => {
+            setQty(productId, value);
+            if (claimAlert.productId === productId) {
+              setClaimAlert({ type: "", text: "", productId: null });
+            }
+          }}
           onClaim={handleClaim}
           claimBusy={claimBusy}
+          claimAlert={claimAlert}
+          onDismissClaimAlert={() => setClaimAlert({ type: "", text: "", productId: null })}
         />
 
         <section className="mt-14">
