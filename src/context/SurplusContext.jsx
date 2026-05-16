@@ -9,7 +9,7 @@ import {
 } from "../services/productService";
 import {
   createClaim,
-  getClaimsByProduct,
+  getClaimsByOwner,
   approveClaim,
   rejectClaim,
   getClaimsByClaimant,
@@ -50,38 +50,53 @@ function requireNumericUserId(user) {
   return id;
 }
 
-/** Map API claim (nested product/claimant) to dashboard row shape. */
-function mapApiClaimToRow(c, user) {
+// 🛡️ 1. GigaChad Tarih Zırhı
+const fixBackendDate = (rawDate) => {
+  if (!rawDate) return new Date().toISOString();
+  if (Array.isArray(rawDate)) {
+    const pad = (n) => String(n).padStart(2, '0');
+    const [y, m, d, h=0, min=0, s=0] = rawDate;
+    return `${y}-${pad(m)}-${pad(d)}T${pad(h)}:${pad(min)}:${pad(s)}`;
+  }
+  return String(rawDate);
+};
+
+// 🛡️ 2. Hata Vermeyen (Crash-Proof) Claim Mapleyici
+function mapApiClaimToRow(c, user, allProducts = []) {
   const role = String(user?.role || "").toUpperCase();
   const requestedQty = c.requestedQuantity ?? c.requested_quantity;
-  const fromProd =
-    c.product != null && typeof c.product === "object"
-      ? c.product.id
-      : typeof c.product === "number"
-        ? c.product
-        : undefined;
+  const fromProd = c.product != null && typeof c.product === "object" ? c.product.id : typeof c.product === "number" ? c.product : undefined;
   const productId = coerceId(fromProd ?? c.productId ?? c.product_id);
   const claimId = coerceId(c.id);
   const status = String(c.status ?? "PENDING").toUpperCase();
+
+  // Market İsmi Dedektifi
+  let foundMarketName = "Market";
+  if (role === "MARKET") {
+    foundMarketName = user.organizationName || "Marketim";
+  } else {
+    if (c.product?.owner?.organizationName) {
+      foundMarketName = c.product.owner.organizationName;
+    } else {
+      const matchedProd = (allProducts || []).find(p => String(p.id) === String(productId));
+      if (matchedProd && matchedProd.marketName) {
+        foundMarketName = matchedProd.marketName;
+      }
+    }
+  }
 
   return {
     id: claimId ?? 0,
     productId: productId == null ? null : productId,
     productName: (c.product != null && typeof c.product === "object" && c.product.name) || "Unknown Product",
-    marketName:
-      role === "MARKET"
-        ? user.organizationName
-        : c.product?.owner?.organizationName || "Market",
+    marketName: foundMarketName,
     ngoName: c.claimant?.organizationName || c.claimant?.email || "Unknown NGO",
     claimantId: coerceId(c.claimant?.id ?? c.claimantId ?? c.claimant_id),
-    claimantKey:
-      c.claimant?.email ||
-      (role === "NGO" ? user?.email : null) ||
-      "unknown",
+    claimantKey: c.claimant?.email || (role === "NGO" ? user?.email : null) || "unknown",
     requestedQuantity: requestedQty != null ? Number(requestedQty) : 1,
     status,
-    createdAt: c.createdAt || c.claimDate || new Date().toISOString(),
-    expiryDate: c.product?.expiryDate ?? c.product?.expiry_date,
+    createdAt: fixBackendDate(c.createdAt || c.claimDate),
+    expiryDate: fixBackendDate(c.product?.expiryDate ?? c.product?.expiry_date),
   };
 }
 
@@ -124,11 +139,7 @@ export function SurplusProvider({ children }) {
 
       if (role === "MARKET") {
         liveProducts = await getProductsByOwner(ownerPathId);
-        if (liveProducts.length > 0) {
-          const claimsPromises = liveProducts.map(p => getClaimsByProduct(p.id).catch(() => []));
-          const claimsArrays = await Promise.all(claimsPromises);
-          liveClaims = claimsArrays.flat();
-        }
+        liveClaims = await getClaimsByOwner(ownerPathId).catch(() => []);
       } else {
         let allProducts = await getAvailableProducts();
         liveProducts = allProducts.filter(
@@ -139,26 +150,20 @@ export function SurplusProvider({ children }) {
 
       let mappedProducts = liveProducts.map((p) => {
         const rawMax = p.maxClaimQuantity ?? p.max_claim_quantity;
-        const maxClaimQuantity =
-          rawMax != null && String(rawMax).trim() !== "" && Number.isFinite(Number(rawMax))
-            ? Number(rawMax)
-            : null;
+        const maxClaimQuantity = rawMax != null && String(rawMax).trim() !== "" && Number.isFinite(Number(rawMax)) ? Number(rawMax) : null;
         return {
           id: coerceId(p.id) ?? p.id,
           ownerId: coerceId(p.owner?.id) ?? p.owner?.id,
           name: p.name,
-          categorySlug:
-            CATEGORY_DB_NAME_TO_SLUG[p.category?.name] ||
-            p.category?.name?.toLowerCase()?.replace(/\s+/g, "_") ||
-            "bakery",
+          categorySlug: CATEGORY_DB_NAME_TO_SLUG[p.category?.name] || p.category?.name?.toLowerCase()?.replace(/\s+/g, "_") || "bakery",
           categoryName: p.category?.name || "General",
           quantity: p.quantity || 1,
           quantityUnit: mapProductUnitFromApi(p.unit),
-          expiryDate: p.expiryDate || new Date().toISOString(),
+          expiryDate: fixBackendDate(p.expiryDate ?? p.expiry_date),
           marketName: p.owner?.organizationName || user.organizationName || "Marketim",
           ownerKey: p.owner?.email || user.email,
           status: p.status || "AVAILABLE",
-          createdAt: p.createdAt || new Date().toISOString(),
+          createdAt: fixBackendDate(p.createdAt ?? p.created_at),
           maxClaimQuantity,
           ...mapOwnerLocation(p.owner),
         };
@@ -171,7 +176,7 @@ export function SurplusProvider({ children }) {
       }
 
       const mappedClaims = liveClaims
-        .map((c) => mapApiClaimToRow(c, user))
+        .map((c) => mapApiClaimToRow(c, user, mappedProducts))
         .sort((a, b) => Number(b.id) - Number(a.id));
 
       dispatch({ type: "SET_DATA", products: mappedProducts, claims: mappedClaims });
@@ -188,99 +193,109 @@ export function SurplusProvider({ children }) {
 
   const actions = useMemo(() => ({
     addProduct: async (productData) => {
-        const ownerId = requireNumericUserId(user);
+      const ownerId = requireNumericUserId(user);
 
-        // 🛡️ GigaChad Tarih Formatlayıcı (Gümrükten net geçer)
-        let formattedDate = productData.expiryDate;
-        if (formattedDate) {
-          if (formattedDate.includes('Z')) formattedDate = formattedDate.split('.')[0].replace('Z', '');
-          if (!formattedDate.includes('T')) formattedDate += "T00:00:00";
-        }
-
-        const reqDto = {
-          name: productData.name,
-          categoryId: CATEGORY_SLUG_TO_ID[productData.categorySlug] ?? 1,
-          quantity: Number(productData.quantity),
-          expiryDate: formattedDate,
-          ownerId,
-          unit: mapProductUnitForApi(productData.quantityUnit),
-        };
-        const mc = productData.maxClaimQuantity;
-        if (mc !== "" && mc != null && Number.isFinite(Number(mc)) && Number(mc) > 0) {
-          reqDto.maxClaimQuantity = Number(mc);
-        }
-        await createProduct(reqDto);
-        await fetchAllData();
-      },
-
-      updateProduct: async (productId, patchData) => {
-        const body = { ownerId: requireNumericUserId(user) };
-        if (patchData.name != null) body.name = patchData.name;
-        if (patchData.quantity != null) body.quantity = Number(patchData.quantity);
+      let formattedDate = productData.expiryDate; 
+      if (formattedDate) {
+        if (formattedDate.includes('Z')) formattedDate = formattedDate.split('.')[0].replace('Z', '');
         
-        // 🛡️ Update ederken de tarih bozulmasın diye aynı zırhı giydiriyoruz
-        if (patchData.expiryDate != null) {
-          let fDate = patchData.expiryDate;
-          if (fDate.includes('Z')) fDate = fDate.split('.')[0].replace('Z', '');
-          if (!fDate.includes('T')) fDate += "T00:00:00";
-          body.expiryDate = fDate;
+        if (!formattedDate.includes('T')) {
+          formattedDate += "T00:00:00";
+        } else if (formattedDate.split(':').length === 2) {
+          formattedDate += ":00";
         }
+      }
 
-        if (patchData.categorySlug != null) {
-          const cid = CATEGORY_SLUG_TO_ID[patchData.categorySlug];
-          if (cid != null) body.categoryId = cid;
-        }
-        if (patchData.quantityUnit) body.unit = mapProductUnitForApi(patchData.quantityUnit);
+      const reqDto = {
+        name: productData.name,
+        categoryId: CATEGORY_SLUG_TO_ID[productData.categorySlug] ?? 1,
+        quantity: Number(productData.quantity),
+        expiryDate: formattedDate,
+        marketId: ownerId, 
+        unit: mapProductUnitForApi(productData.quantityUnit),
+      };
+
+      const mc = productData.maxClaimQuantity;
+      if (mc !== "" && mc != null && Number.isFinite(Number(mc)) && Number(mc) > 0) {
+        reqDto.maxClaimQuantity = Number(mc);
+      }
+
+      console.log("🚀 Backend'e Uçan Paket (Add):", reqDto);
+      await createProduct(reqDto);
+      await fetchAllData();
+    },
+
+    updateProduct: async (productId, patchData) => {
+      const body = { ownerId: requireNumericUserId(user) };
+      if (patchData.name != null) body.name = patchData.name;
+      if (patchData.quantity != null) body.quantity = Number(patchData.quantity);
+
+      let formattedDate = patchData.expiryDate; // 👈 HATA BURADAYDI, DÜZELTİLDİ
+      if (formattedDate) {
+        if (formattedDate.includes('Z')) formattedDate = formattedDate.split('.')[0].replace('Z', '');
         
-        // 🛡️ SPRINT HEDEFİ 1: Edit yaparken limiti değiştirebilme
-        if (patchData.maxClaimQuantity != null) {
-          body.maxClaimQuantity = Number(patchData.maxClaimQuantity);
+        if (!formattedDate.includes('T')) {
+          formattedDate += "T00:00:00";
+        } else if (formattedDate.split(':').length === 2) {
+          formattedDate += ":00";
         }
+        body.expiryDate = formattedDate; // 👈 VE BURADA EKLENMİYORDU, DÜZELTİLDİ
+      }
 
-        console.log("🛠️ Backend'e Uçan Paket (Edit):", body);
-        await apiUpdateProduct(Number(productId), body);
-        await fetchAllData();
-      },
+      if (patchData.categorySlug != null) {
+        const cid = CATEGORY_SLUG_TO_ID[patchData.categorySlug];
+        if (cid != null) body.categoryId = cid;
+      }
+      if (patchData.quantityUnit) body.unit = mapProductUnitForApi(patchData.quantityUnit);
+      
+      if (patchData.maxClaimQuantity != null) {
+        body.maxClaimQuantity = Number(patchData.maxClaimQuantity);
+      }
 
-      deleteProduct: async (productId) => {
-        await apiDeleteProduct(Number(productId), { ownerId: requireNumericUserId(user) });
-        await fetchAllData();
-      },
+      console.log("🛠️ Backend'e Uçan Paket (Edit):", body);
+      await apiUpdateProduct(Number(productId), body);
+      await fetchAllData();
+    },
 
-      addClaim: async (claimData, productId) => {
-        const claimantId = requireNumericUserId(user);
-        await createClaim({
-          productId: Number(productId),
-          claimantId,
-          requestedQuantity: Number(claimData.requestedQuantity) || 1,
-        });
-        await fetchAllData();
-      },
+    deleteProduct: async (productId) => {
+      await apiDeleteProduct(Number(productId), { ownerId: requireNumericUserId(user) });
+      await fetchAllData();
+    },
 
-      updateClaim: async (claimId, requestedQuantity) => {
-        const cid = Number(claimId);
-        const uid = requireNumericUserId(user);
-        if (!Number.isFinite(cid)) {
-          throw new Error("Missing claim id. Log out and log in again.");
-        }
-        const qty = parseInt(String(requestedQuantity), 10);
-        if (!Number.isFinite(qty) || qty < 1) {
-          throw new Error("Invalid requested quantity.");
-        }
-        await patchClaim(cid, { claimantId: uid, requestedQuantity: qty });
-        await fetchAllData();
-      },
+    addClaim: async (claimData, productId) => {
+      const claimantId = requireNumericUserId(user);
+      await createClaim({
+        productId: Number(productId),
+        claimantId,
+        requestedQuantity: Number(claimData.requestedQuantity) || 1,
+      });
+      await fetchAllData();
+    },
 
-      withdrawClaim: async (claimId) => {
-        await withdrawClaimRequest(Number(claimId), requireNumericUserId(user));
-        await fetchAllData();
-      },
+    updateClaim: async (claimId, requestedQuantity) => {
+      const cid = Number(claimId);
+      const uid = requireNumericUserId(user);
+      if (!Number.isFinite(cid)) {
+        throw new Error("Missing claim id. Log out and log in again.");
+      }
+      const qty = parseInt(String(requestedQuantity), 10);
+      if (!Number.isFinite(qty) || qty < 1) {
+        throw new Error("Invalid requested quantity.");
+      }
+      await patchClaim(cid, { claimantId: uid, requestedQuantity: qty });
+      await fetchAllData();
+    },
 
-      resolveClaim: async (claimId, resolution) => {
-        if (resolution === "APPROVED") await approveClaim(claimId);
-        else await rejectClaim(claimId);
-        await fetchAllData();
-      },
+    withdrawClaim: async (claimId) => {
+      await withdrawClaimRequest(Number(claimId), requireNumericUserId(user));
+      await fetchAllData();
+    },
+
+    resolveClaim: async (claimId, resolution) => {
+      if (resolution === "APPROVED") await approveClaim(claimId);
+      else await rejectClaim(claimId);
+      await fetchAllData();
+    },
   }), [user, fetchAllData]);
 
   const contextValue = useMemo(() => ({

@@ -15,7 +15,7 @@ export const getProducts = async () => {
 
 export const createProduct = async (productData) => {
   try {
-    const res = await API.post("/products", productData);
+    const res = await API.post("/products/add", productData);
     return res.data.data || res.data; 
   } catch (error) {
     throw new Error(extractMessage(error, "Failed to create product"));
@@ -33,7 +33,7 @@ export const getUrgentProducts = async () => {
 
 export const getProductsByOwner = async (ownerId) => {
   try {
-    const res = await API.get(`/products/owner/${ownerId}`);
+    const res = await API.get(`/products/market/${ownerId}`); 
     return asApiArray(res.data);
   } catch (error) {
     throw new Error(extractMessage(error, "Failed to fetch your products"));
