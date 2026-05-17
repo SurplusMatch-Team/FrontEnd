@@ -66,3 +66,14 @@ export const updateProduct = async (id, data) => {
     throw new Error(extractMessage(error, "Failed to update product"));
   }
 };
+
+export const getNearbyProducts = async (city, district) => {
+  try {
+    const res = await API.get(`/products/nearby`, {
+      params: { city, district }
+    });
+    return res.data;
+  } catch (error) {
+    throw new Error("The nearby products could not be fetched. Please try again later.");
+  }
+};

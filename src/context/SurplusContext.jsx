@@ -5,7 +5,8 @@ import {
   getProductsByOwner, 
   createProduct, 
   deleteProduct as apiDeleteProduct,
-  updateProduct as apiUpdateProduct 
+  updateProduct as apiUpdateProduct,
+  getNearbyProducts 
 } from "../services/productService";
 import {
   createClaim,
@@ -141,10 +142,34 @@ export function SurplusProvider({ children }) {
         liveProducts = await getProductsByOwner(ownerPathId);
         liveClaims = await getClaimsByOwner(ownerPathId).catch(() => []);
       } else {
-        let allProducts = await getAvailableProducts();
-        liveProducts = allProducts.filter(
-          (p) => String(p.status || "").toUpperCase() === "AVAILABLE",
-        );
+        // 🛡️ NGO Kullanıcısının Lokasyonunu Çekiyoruz (Şehir/İlçe Filtresi İçin)
+        const userCity = user?.city || user?.address?.city;
+        const userDistrict = user?.district || user?.address?.district;
+
+        try {
+          // 1. Plan: Eğer kullanıcının şehri belliyse, Muhammet'in yeni "nearby" kapısını çal!
+          if (userCity) {
+            let nearbyApiProducts = await getNearbyProducts(userCity, userDistrict || "");
+            liveProducts = nearbyApiProducts.filter(p => String(p.status || "").toUpperCase() === "AVAILABLE");
+          } else {
+            // Şehri yoksa mecburen hepsini çek
+            let allProducts = await getAvailableProducts();
+            liveProducts = allProducts.filter(p => String(p.status || "").toUpperCase() === "AVAILABLE");
+          }
+        } catch (error) {
+          // 2. Plan (GigaChad Fallback): Backend patlarsa, sistemi çökertme. Hepsini çek, frontend'de kendin filtrele!
+          console.warn("⚠️ Backend nearby uç noktası patladı, Frontend manuel filtresi devrede!");
+          let allProducts = await getAvailableProducts();
+          let availableOnly = allProducts.filter(p => String(p.status || "").toUpperCase() === "AVAILABLE");
+          
+          liveProducts = userCity 
+            ? availableOnly.filter(p => {
+                const pCity = p.owner?.city || p.owner?.address?.city;
+                return pCity && String(pCity).toLowerCase() === String(userCity).toLowerCase();
+              })
+            : availableOnly;
+        }
+        
         liveClaims = await getClaimsByClaimant(ownerPathId).catch(() => []);
       }
 

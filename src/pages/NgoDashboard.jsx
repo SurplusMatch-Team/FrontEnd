@@ -216,6 +216,16 @@ function NgoDashboardInner() {
             {banner.text}
           </div>
         ) : null}
+        
+          {(user?.city || user?.address?.city) && (
+          <div className="mt-6 flex items-center gap-3 rounded-xl border border-teal-500/30 bg-teal-500/10 px-4 py-3 text-sm text-teal-100 backdrop-blur-sm">
+            <span className="text-xl">📍</span>
+            <p>
+              <strong className="text-teal-300">Showing products near you: </strong> 
+              Sadece <b className="text-white">{user?.city || user?.address?.city}</b> bölgesindeki güvenli ürünler listeleniyor.
+            </p>
+          </div>
+        )}
 
         <div className="mt-10 grid gap-5 lg:grid-cols-12 lg:gap-6">
           <section className="relative overflow-hidden rounded-[2rem] border border-white/10 bg-gradient-to-br from-emerald-950/90 via-teal-950/80 to-[#022c1c] p-8 shadow-2xl shadow-black/40 ring-1 ring-white/5 lg:col-span-7 md:p-10">
