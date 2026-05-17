@@ -217,7 +217,7 @@ function MarketDashboardInner() {
               <h2 className="mt-5 max-w-lg text-3xl font-bold leading-[1.12] tracking-tight text-white md:text-4xl">{t("market.heroTitle")}</h2>
               <p className="mt-4 max-w-xl text-sm leading-relaxed text-cyan-100/70 md:text-base">{t("market.heroBody")}</p>
 
-              <div className="mt-8 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              <div className="mt-8 grid grid-cols-1 items-stretch gap-3 sm:grid-cols-2 lg:grid-cols-4">
                 <div className="rounded-2xl border border-white/10 bg-black/25 px-5 py-4 backdrop-blur-sm">
                   <p className="text-3xl font-bold tabular-nums text-white">{metrics.liveListings}</p>
                   <p className="mt-1 text-xs font-medium text-cyan-100/75">{t("market.statListingsCaption")}</p>
@@ -230,7 +230,7 @@ function MarketDashboardInner() {
                   <p className="text-3xl font-bold tabular-nums text-amber-50">{metrics.inbox}</p>
                   <p className="mt-1 text-xs font-medium text-amber-100/80">{t("market.statInboxCaption")}</p>
                 </div>
-                <MarketGreenScorePanel claims={claims} myProducts={myProducts} t={t} />
+                <MarketGreenScorePanel claims={claims} t={t} />
               </div>
             </div>
           </section>

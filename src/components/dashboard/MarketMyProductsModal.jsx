@@ -77,6 +77,10 @@ function MarketMyProductsModal({
       name: p.name,
       quantity: String(p.quantity),
       quantityUnit: p.quantityUnit || "kg",
+      maxClaimQuantity:
+        p.maxClaimQuantity != null && Number.isFinite(Number(p.maxClaimQuantity))
+          ? String(p.maxClaimQuantity)
+          : "",
       expiryDate: isoToDatetimeLocal(p.expiryDate),
       categorySlug: inferCategorySlug(p, t),
     });
@@ -103,17 +107,32 @@ function MarketMyProductsModal({
       return;
     }
 
+    const maxRaw = String(editForm.maxClaimQuantity ?? "").trim();
+    let maxClaimQuantity;
+    if (maxRaw !== "") {
+      const maxClaim = Number(maxRaw);
+      if (!Number.isInteger(maxClaim) || maxClaim < 1 || maxClaim > qty) {
+        setToast({ type: "err", text: t("market.formErrMaxClaim") });
+        return;
+      }
+      maxClaimQuantity = maxClaim;
+    }
+
     const catLabel = t(`categories.${editForm.categorySlug}`);
     const categoryName = catLabel === `categories.${editForm.categorySlug}` ? t("market.categoryGeneral") : catLabel;
     try {
-      await onUpdate(productId, {
+      const patch = {
         name: editForm.name.trim(),
         quantity: qty,
         quantityUnit: editForm.quantityUnit,
         expiryDate: datetimeLocalToApi(editForm.expiryDate),
         categorySlug: editForm.categorySlug,
         categoryName,
-      });
+      };
+      if (maxClaimQuantity != null) {
+        patch.maxClaimQuantity = maxClaimQuantity;
+      }
+      await onUpdate(productId, patch);
       setToast({ type: "ok", text: t("market.updateOk") });
       cancelEdit();
     } catch (err) {
@@ -255,6 +274,20 @@ function MarketMyProductsModal({
                           ))}
                         </select>
                       </div>
+                      <div>
+                        <label className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">
+                          {t("market.formMaxClaim")}
+                        </label>
+                        <input
+                          type="number"
+                          min={1}
+                          value={editForm.maxClaimQuantity}
+                          onChange={(e) => setEditForm((f) => ({ ...f, maxClaimQuantity: e.target.value }))}
+                          className="mt-1 w-full rounded-lg border border-white/15 bg-slate-900 px-2 py-2 text-sm text-white"
+                          placeholder={t("market.formMaxClaimPh")}
+                        />
+                        <p className="mt-1 text-[10px] leading-snug text-slate-500">{t("market.formMaxClaimHint")}</p>
+                      </div>
                       <div className="flex flex-wrap gap-2">
                         <button
                           type="button"
@@ -282,6 +315,18 @@ function MarketMyProductsModal({
                             {formatQuantity(p, t)} · {t("productCard.useBy")}{" "}
                             {formatExpiryDate(p.expiryDate, locale)}
                           </p>
+                          {p.maxClaimQuantity != null && Number.isFinite(Number(p.maxClaimQuantity)) ? (
+                            <p className="mt-1 text-[11px] text-emerald-200/85">
+                              {t("productCard.maxClaimPerNgo", {
+                                max: p.maxClaimQuantity,
+                                unit:
+                                  t(`units.${p.quantityUnit || "units"}`) ===
+                                  `units.${p.quantityUnit || "units"}`
+                                    ? p.quantityUnit || "units"
+                                    : t(`units.${p.quantityUnit || "units"}`),
+                              })}
+                            </p>
+                          ) : null}
                           {pendingReserved > 0 ? (
                             <p className="mt-1.5 text-[11px] leading-snug text-amber-200/85">
                               {t("market.pendingReservedHint", { n: pendingReserved })}

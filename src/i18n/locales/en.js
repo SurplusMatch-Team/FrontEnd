@@ -357,6 +357,9 @@ export const en = {
     errExceed: "Requested amount cannot exceed {{max}} {{unit}} offered.",
     errMaxPending: "You already have {{max}} requests awaiting market review. Withdraw or wait before opening another.",
     errDuplicateProduct: "You already have a pending request for this listing.",
+    alreadyEvaluatedClaim:
+      "Your request on this listing was already decided ({{status}}). You cannot submit another claim from this NGO account.",
+    errAlreadyEvaluated: "You already received an approval or rejection on this listing.",
     claimSubmitErr: "Could not submit your request. Check the message or try again.",
     okClaim: "Request sent — the market will approve or decline shortly.",
   },
