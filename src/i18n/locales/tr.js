@@ -29,6 +29,11 @@ const TR_PATCH = {
   meta: {
     title: "Replate — Fazla gıdayı STK'larla kurtarın",
   },
+  dashboard: {
+    myLocation: "Kayıtlı konumunuz",
+    myLocationHintMarket: "Bu adres, STK'ların ürün kartlarında gördüğü market konumudur.",
+    myLocationHintNgo: "Bu adres kayıt sırasında belirlenir; ürün ararken market konumlarını ilan kartlarında görürsünüz.",
+  },
   common: {
     brand: "Replate",
     unknownUser: "Bilinmeyen kullanıcı",
@@ -176,8 +181,6 @@ const TR_PATCH = {
     toggleToLogin: "Zaten hesabınız var mı?",
     linkRegister: "Kayıt ol",
     linkLogin: "Giriş yap",
-    demoNgo: "Demo STK paneli",
-    demoMarket: "Demo Market paneli",
     backHome: "← Ana sayfa",
   },
   login: {
@@ -205,6 +208,12 @@ const TR_PATCH = {
     phEmail: "siz@ornek.com",
     phPassword: "Bir şifre oluşturun",
     phOrg: "Kurum adını girin",
+    addressSection: "Konum",
+    addressHint: "STK'lar market konumunu yalnızca görüntüleyebilir; kayıttan sonra değiştirilemez.",
+    phCity: "Örn. Kayseri",
+    phDistrict: "Örn. Melikgazi",
+    phFullAddress: "Mahalle, cadde, kapı no",
+    errAddress: "Şehir, ilçe ve açık adres zorunludur.",
     submit: "Hesap oluştur",
     submitting: "Hesap oluşturuluyor...",
     success: "Kayıt başarılı. Giriş sayfasına yönlendiriliyorsunuz...",
@@ -265,6 +274,9 @@ const TR_PATCH = {
     incomingHint: "Kendi ilanlarınız için kurtarma taleplerini onaylayın veya reddedin.",
     noPending: "Şu an bekleyen talep yok.",
     requestedBy: "Talep eden",
+    viewNgoAddress: "Adresi görüntüle",
+    hideNgoAddress: "Adresi gizle",
+    ngoAddressLabel: "STK adresi",
     requestedUnits: "{{n}} talep edildi",
     approve: "Onayla",
     reject: "Reddet",

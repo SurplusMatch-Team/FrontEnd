@@ -11,6 +11,9 @@ function Register() {
     password: "",
     organizationName: "",
     role: "MARKET",
+    city: "",
+    district: "",
+    fullAddress: "",
   });
 
   const [loading, setLoading] = useState(false);
@@ -23,8 +26,17 @@ function Register() {
     setError("");
     setSuccess("");
 
+    const city = form.city.trim();
+    const district = form.district.trim();
+    const fullAddress = form.fullAddress.trim();
+    if (!city || !district || !fullAddress) {
+      setError(t("register.errAddress"));
+      setLoading(false);
+      return;
+    }
+
     try {
-      await registerUser(form);
+      await registerUser({ ...form, city, district, fullAddress });
       setSuccess(t("register.success"));
 
       setTimeout(() => {
@@ -106,6 +118,48 @@ function Register() {
             <option value="NGO">{t("common.roleNgo")}</option>
             <option value="MARKET">{t("common.roleMarket")}</option>
           </select>
+        </div>
+
+        <div className="rounded-xl border border-slate-200 bg-slate-50/80 p-4 space-y-3">
+          <div>
+            <p className="text-sm font-semibold text-slate-800">{t("register.addressSection")}</p>
+            <p className="mt-1 text-xs text-slate-500">{t("register.addressHint")}</p>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-sm font-medium mb-1 text-slate-700">{t("common.city")}</label>
+              <input
+                type="text"
+                required
+                placeholder={t("register.phCity")}
+                value={form.city}
+                onChange={(e) => setForm({ ...form, city: e.target.value })}
+                className="w-full rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-slate-800 placeholder:text-slate-400 outline-none transition focus:border-emerald-400 focus:ring-2 focus:ring-emerald-200"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-1 text-slate-700">{t("common.district")}</label>
+              <input
+                type="text"
+                required
+                placeholder={t("register.phDistrict")}
+                value={form.district}
+                onChange={(e) => setForm({ ...form, district: e.target.value })}
+                className="w-full rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-slate-800 placeholder:text-slate-400 outline-none transition focus:border-emerald-400 focus:ring-2 focus:ring-emerald-200"
+              />
+            </div>
+          </div>
+          <div>
+            <label className="block text-sm font-medium mb-1 text-slate-700">{t("common.address")}</label>
+            <input
+              type="text"
+              required
+              placeholder={t("register.phFullAddress")}
+              value={form.fullAddress}
+              onChange={(e) => setForm({ ...form, fullAddress: e.target.value })}
+              className="w-full rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-slate-800 placeholder:text-slate-400 outline-none transition focus:border-emerald-400 focus:ring-2 focus:ring-emerald-200"
+            />
+          </div>
         </div>
 
         <button

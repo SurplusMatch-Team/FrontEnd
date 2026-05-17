@@ -2,6 +2,11 @@ export const en = {
   meta: {
     title: "Replate — Rescue surplus food with NGOs",
   },
+  dashboard: {
+    myLocation: "Your registered location",
+    myLocationHintMarket: "NGOs see this address on your product listings.",
+    myLocationHintNgo: "Set at sign-up. When browsing surplus, each market's address appears on the listing card.",
+  },
   common: {
     brand: "Replate",
     unknownUser: "Unknown user",
@@ -159,8 +164,6 @@ export const en = {
     toggleToLogin: "Already have an account?",
     linkRegister: "Sign up",
     linkLogin: "Sign in",
-    demoNgo: "Demo NGO dashboard",
-    demoMarket: "Demo Market dashboard",
     backHome: "← Home",
   },
   login: {
@@ -188,6 +191,12 @@ export const en = {
     phEmail: "you@example.com",
     phPassword: "Create a password",
     phOrg: "Enter organisation name",
+    addressSection: "Location",
+    addressHint: "NGOs can view your location on listings; it cannot be changed after sign-up in this demo.",
+    phCity: "e.g. Kayseri",
+    phDistrict: "e.g. Melikgazi",
+    phFullAddress: "Street, building number",
+    errAddress: "City, district, and street address are required.",
     submit: "Create account",
     submitting: "Creating account...",
     success: "Registration successful. Redirecting to sign in...",
@@ -248,6 +257,9 @@ export const en = {
     incomingHint: "Approve or reject rescue requests for your own listings.",
     noPending: "No pending requests right now.",
     requestedBy: "Requested by",
+    viewNgoAddress: "View address",
+    hideNgoAddress: "Hide address",
+    ngoAddressLabel: "NGO address",
     requestedUnits: "{{n}} requested",
     approve: "Approve",
     reject: "Reject",
