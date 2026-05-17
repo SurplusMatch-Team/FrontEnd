@@ -1,29 +1,12 @@
-import { Link, useNavigate } from "react-router-dom";
-import { useAuth } from "../hooks/useAuth";
+import { Link } from "react-router-dom";
 import { useI18n } from "../i18n/I18nContext";
 import { LanguageSwitch } from "../components/common/LanguageSwitch";
 import Login from "./Login";
 import Register from "./Register";
 
 function AuthPage({ mode = "login" }) {
-  const navigate = useNavigate();
-  const { login } = useAuth();
   const { t } = useI18n();
   const isLoginRoute = mode === "login";
-
-  const handleDemoEnter = (role) => {
-    login({
-      token: `demo-token-${role.toLowerCase()}`,
-      user: {
-        /** Placeholder ids for UI demo; use real login for API-backed data. */
-        id: role === "MARKET" ? 90001 : 90002,
-        email: role === "MARKET" ? "market-demo@replate.local" : "ngo-demo@replate.local",
-        role,
-        organizationName: role === "MARKET" ? "Sunrise Market Co-op" : "Community Plate NGO",
-      },
-    });
-    navigate(role === "MARKET" ? "/dashboard/market" : "/dashboard/ngo", { replace: true });
-  };
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-800 relative overflow-hidden">
@@ -69,23 +52,6 @@ function AuthPage({ mode = "login" }) {
                 {isLoginRoute ? t("authPage.linkRegister") : t("authPage.linkLogin")}
               </Link>
             </p>
-
-            <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-2">
-              <button
-                type="button"
-                onClick={() => handleDemoEnter("NGO")}
-                className="w-full rounded-xl border border-emerald-200 bg-emerald-50 py-3 text-sm font-semibold text-emerald-700 hover:bg-emerald-100 transition"
-              >
-                {t("authPage.demoNgo")}
-              </button>
-              <button
-                type="button"
-                onClick={() => handleDemoEnter("MARKET")}
-                className="w-full rounded-xl border border-cyan-200 bg-cyan-50 py-3 text-sm font-semibold text-cyan-700 hover:bg-cyan-100 transition"
-              >
-                {t("authPage.demoMarket")}
-              </button>
-            </div>
           </section>
         </div>
       </div>

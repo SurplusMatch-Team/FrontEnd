@@ -20,6 +20,7 @@ import {
 import { useAuth } from "../hooks/useAuth";
 import { CATEGORY_SLUG_TO_ID, CATEGORY_DB_NAME_TO_SLUG } from "../data/categories";
 import { mapProductUnitForApi, mapProductUnitFromApi, coerceId } from "../utils/surplusApi";
+import { formatOrganizationAddressLine } from "../utils/organizationAddress";
 
 function mapOwnerLocation(owner) {
   if (!owner || typeof owner !== "object") {
@@ -92,6 +93,7 @@ function mapApiClaimToRow(c, user, allProducts = []) {
     productName: (c.product != null && typeof c.product === "object" && c.product.name) || "Unknown Product",
     marketName: foundMarketName,
     ngoName: c.claimant?.organizationName || c.claimant?.email || "Unknown NGO",
+    ngoAddressLine: formatOrganizationAddressLine(c.claimant) || "",
     claimantId: coerceId(c.claimant?.id ?? c.claimantId ?? c.claimant_id),
     claimantKey: c.claimant?.email || (role === "NGO" ? user?.email : null) || "unknown",
     requestedQuantity: requestedQty != null ? Number(requestedQty) : 1,

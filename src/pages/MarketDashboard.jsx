@@ -3,6 +3,8 @@ import { useNavigate } from "react-router-dom";
 import MarketMyProductsModal from "../components/dashboard/MarketMyProductsModal";
 import { MarketGreenScorePanel } from "../components/dashboard/MarketGreenScorePanel";
 import Topbar from "../components/dashboard/Topbar";
+import { OrganizationLocationPanel } from "../components/dashboard/OrganizationLocationPanel";
+import { ClaimantAddressToggle } from "../components/dashboard/ClaimantAddressToggle";
 import RoleGuard from "../components/common/RoleGuard";
 import { ProductListSection } from "../components/surplus/ProductListSection";
 import { FOOD_CATEGORY_SLUGS } from "../data/categories";
@@ -198,6 +200,8 @@ function MarketDashboardInner() {
             {t("market.dashboardLoadErr")}
           </div>
         ) : null}
+
+        <OrganizationLocationPanel user={user} variant="dark" hintKey="dashboard.myLocationHintMarket" />
 
         <div className="mt-10 grid gap-5 lg:grid-cols-12 lg:gap-6">
           <section className="relative overflow-hidden rounded-[2rem] border border-white/10 bg-gradient-to-br from-slate-950/95 via-cyan-950/75 to-[#061c24] p-8 shadow-2xl shadow-black/40 ring-1 ring-white/5 lg:col-span-7 md:p-10">
@@ -434,6 +438,7 @@ function MarketDashboardInner() {
                       <span className="text-slate-500"> · </span>
                       <span className="text-cyan-200/90">{t("market.requestedUnits", { n: c.requestedQuantity })}</span>
                     </p>
+                    <ClaimantAddressToggle addressLine={c.ngoAddressLine} />
                   </div>
                   <div className="flex flex-wrap gap-2">
                     <button

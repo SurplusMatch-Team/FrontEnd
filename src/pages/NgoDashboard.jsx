@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import NgoAvailableProductsModal from "../components/dashboard/NgoAvailableProductsModal";
 import Topbar from "../components/dashboard/Topbar";
+import { OrganizationLocationPanel } from "../components/dashboard/OrganizationLocationPanel";
 import RoleGuard from "../components/common/RoleGuard";
 import { ProductListSection } from "../components/surplus/ProductListSection";
 import { useSurplus } from "../context/SurplusContext";
@@ -216,6 +217,8 @@ function NgoDashboardInner() {
             {banner.text}
           </div>
         ) : null}
+
+        <OrganizationLocationPanel user={user} variant="dark" hintKey="dashboard.myLocationHintNgo" />
         
           {(user?.city || user?.address?.city) && (
           <div className="mt-6 flex items-center gap-3 rounded-xl border border-teal-500/30 bg-teal-500/10 px-4 py-3 text-sm text-teal-100 backdrop-blur-sm">
