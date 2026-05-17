@@ -6,24 +6,17 @@ function levelFromPoints(points) {
   return "bronze";
 }
 
-/**
- * Demo green score from approved claims on this market's products (until API provides a field).
- */
-export function MarketGreenScorePanel({ claims, myProducts, t }) {
+/** Green score from all approved claims for this market (includes closed/deleted listings). */
+export function MarketGreenScorePanel({ claims, t }) {
   const { points, level } = useMemo(() => {
-    const myIds = new Set(
-      myProducts.map((p) => Number(p.id)).filter((n) => Number.isFinite(n)),
-    );
-    const approved = claims.filter(
-      (c) => String(c.status || "").toUpperCase() === "APPROVED" && myIds.has(Number(c.productId)),
-    );
+    const approved = claims.filter((c) => String(c.status || "").toUpperCase() === "APPROVED");
     let pts = 0;
     for (const c of approved) {
       const q = Number(c.requestedQuantity);
       pts += 10 + (Number.isFinite(q) ? Math.min(q, 40) : 0);
     }
     return { points: pts, level: levelFromPoints(pts) };
-  }, [claims, myProducts]);
+  }, [claims]);
 
   const levelLabel =
     level === "gold"
@@ -32,22 +25,17 @@ export function MarketGreenScorePanel({ claims, myProducts, t }) {
         ? t("market.greenLevelSilver")
         : t("market.greenLevelBronze");
 
+  const tooltip = `${t("market.greenScoreBody")} ${t("market.greenScoreDemoNote")}`;
+
   return (
-    <div className="rounded-2xl border border-emerald-400/35 bg-gradient-to-br from-emerald-500/20 via-teal-900/40 to-slate-950/80 px-5 py-4 shadow-lg backdrop-blur-sm ring-1 ring-emerald-400/15">
-      <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-emerald-200/90">{t("market.greenScoreEyebrow")}</p>
-      <p className="mt-2 text-lg font-bold text-white">{t("market.greenScoreTitle")}</p>
-      <p className="mt-1 text-xs leading-relaxed text-emerald-100/75">{t("market.greenScoreBody")}</p>
-      <div className="mt-4 flex items-end justify-between gap-3">
-        <div>
-          <p className="text-3xl font-black tabular-nums text-emerald-200">{points}</p>
-          <p className="text-[10px] font-semibold uppercase tracking-wide text-emerald-300/80">{t("market.greenScorePointsLabel")}</p>
-        </div>
-        <div className="text-right">
-          <p className="text-sm font-bold text-white">{levelLabel}</p>
-          <p className="text-[10px] text-emerald-200/80">{t("market.greenScoreLevelLabel")}</p>
-        </div>
-      </div>
-      <p className="mt-3 border-t border-white/10 pt-2 text-[10px] leading-snug text-slate-400">{t("market.greenScoreDemoNote")}</p>
+    <div 
+      className="flex h-full min-h-0 flex-col overflow-hidden rounded-2xl border border-emerald-400/25 bg-emerald-500/10 px-5 py-4 backdrop-blur-sm"
+      title={tooltip}
+    >
+      <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-emerald-200/85">{t("market.greenScoreEyebrow")}</p>
+      <p className="mt-2 text-3xl font-bold tabular-nums leading-none text-emerald-50">{points}</p>
+      <p className="mt-1 min-w-0 truncate text-xs font-medium text-emerald-100/80">{t("market.greenScoreTitle")}</p>
+      <p className="mt-0.5 min-w-0 truncate text-[11px] font-semibold text-white/90">{levelLabel}</p>
     </div>
   );
 }

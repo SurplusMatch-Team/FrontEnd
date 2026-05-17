@@ -3,6 +3,7 @@ import { useI18n } from "../../i18n/I18nContext";
 import { categoryLabelFromProduct } from "../../utils/categoryDisplay";
 import { ProductCard } from "../surplus/ProductCard";
 import { ProductListSection } from "../surplus/ProductListSection";
+import { findNgoClaimForProduct, ngoClaimGate } from "../../utils/ngoClaimGate";
 
 const ALL = "__all__";
 
@@ -10,6 +11,7 @@ function NgoAvailableProductsModal({
   open,
   onClose,
   products,
+  myClaims = [],
   loading,
   error,
   qtyByProduct,
@@ -21,6 +23,12 @@ function NgoAvailableProductsModal({
 }) {
   const { t } = useI18n();
   const [tagFilter, setTagFilter] = useState(ALL);
+
+  const claimStatusLabel = (status) => {
+    const key = `ngo.claimStatus.${status}`;
+    const lbl = t(key);
+    return lbl === key ? status : lbl;
+  };
 
   const handleClose = () => {
     setTagFilter(ALL);
@@ -175,6 +183,9 @@ function NgoAvailableProductsModal({
                 {filtered.map((p) => {
                   const isAlertTarget =
                     claimAlert.text && claimAlert.productId != null && Number(claimAlert.productId) === Number(p.id);
+                  const existingClaim = findNgoClaimForProduct(p.id, myClaims);
+                  const gate = ngoClaimGate(existingClaim);
+                  const claimFormLocked = !gate.canClaim;
                   return (
                     <li
                       key={p.id}
@@ -189,7 +200,15 @@ function NgoAvailableProductsModal({
                       <ProductCard
                         product={p}
                         footer={
-                          p.status === "AVAILABLE" ? (
+                          gate.kind === "resolved" ? (
+                            <p className="text-sm font-medium text-slate-600">
+                              {t("ngo.alreadyEvaluatedClaim", {
+                                status: claimStatusLabel(gate.status),
+                              })}
+                            </p>
+                          ) : gate.kind === "pending" ? (
+                            <p className="text-sm text-amber-900/90">{t("ngo.claimBlocked")}</p>
+                          ) : p.status === "AVAILABLE" ? (
                             <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
                               <div className="flex-1">
                                 <label className="text-[11px] font-bold uppercase tracking-wide text-slate-500">
@@ -210,7 +229,7 @@ function NgoAvailableProductsModal({
                                 <input
                                   type="number"
                                   min={1}
-                                  disabled={claimBusy}
+                                  disabled={claimBusy || claimFormLocked}
                                   value={qtyByProduct[p.id] ?? ""}
                                   onChange={(e) => onQtyChange(p.id, e.target.value)}
                                   className={`mt-1 w-full rounded-xl border bg-slate-50 px-3 py-2 text-sm text-slate-900 outline-none focus:ring-2 disabled:cursor-not-allowed disabled:opacity-60 ${
@@ -223,7 +242,7 @@ function NgoAvailableProductsModal({
                               </div>
                               <button
                                 type="button"
-                                disabled={claimBusy}
+                                disabled={claimBusy || claimFormLocked}
                                 onClick={() => void onClaim(p)}
                                 className="shrink-0 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 px-4 py-2.5 text-sm font-bold text-white shadow-md transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60"
                               >

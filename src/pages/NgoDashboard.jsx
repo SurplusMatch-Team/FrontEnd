@@ -10,6 +10,7 @@ import { useAuth } from "../hooks/useAuth";
 import { useI18n } from "../i18n/I18nContext";
 import { formatExpiryDate } from "../utils/surplusDisplay";
 import { MAX_PENDING_CLAIMS_PER_NGO } from "../constants/surplusLimits";
+import { findNgoClaimForProduct, ngoClaimGate } from "../utils/ngoClaimGate";
 
 function LeafMark({ className = "" }) {
   return (
@@ -135,6 +136,12 @@ function NgoDashboardInner() {
     );
     if (duplicatePending) {
       showClaimFeedback("err", t("ngo.errDuplicateProduct"), product.id);
+      return;
+    }
+    const priorClaim = findNgoClaimForProduct(product.id, myClaims);
+    const gate = ngoClaimGate(priorClaim);
+    if (gate.kind === "resolved") {
+      showClaimFeedback("err", t("ngo.errAlreadyEvaluated"), product.id);
       return;
     }
     setClaimBusy(true);
@@ -299,6 +306,7 @@ function NgoDashboardInner() {
           open={availableModalOpen}
           onClose={closeBrowseModal}
           products={browseProductsSorted}
+          myClaims={myClaims}
           loading={loading}
           error={error}
           qtyByProduct={qtyByProduct}

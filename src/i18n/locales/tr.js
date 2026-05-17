@@ -372,6 +372,9 @@ const TR_PATCH = {
     errExceed: "Talep, sunulan {{max}} {{unit}} miktarını aşamaz.",
     errMaxPending: "Zaten {{max}} talep market incelemesinde. Geri çekin veya bekleyin.",
     errDuplicateProduct: "Bu ilan için zaten bekleyen bir talebiniz var.",
+    alreadyEvaluatedClaim:
+      "Bu ilan için talebiniz değerlendirildi ({{status}}). Bu STK hesabıyla yeniden talep oluşturamazsınız.",
+    errAlreadyEvaluated: "Bu ilan için talebiniz zaten onaylandı veya reddedildi.",
     claimSubmitErr: "Talep gönderilemedi. Mesajı kontrol edin veya tekrar deneyin.",
     okClaim: "Talep gönderildi — market kısa sürede onaylar veya reddeder.",
   },
